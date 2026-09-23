@@ -8,30 +8,32 @@ dépôt.
 Quelques conventions :
 
 - **Pas de numéros de version.** `package.json` reste en `0.0.0` et le dépôt n'a aucun tag : les étapes sont
-  identifiées par leur hash de commit. Tout l'historique tient sur une journée, le **11 septembre 2026** ; l'heure
-  (Europe/Paris) sert donc à ordonner les étapes.
+  identifiées par leur hash de commit. Les étapes 1 à 7 tiennent sur une journée, le **11 septembre 2026** ; l'heure
+  (Europe/Paris) sert donc à les ordonner. L'étape 8 (droit fiscal) arrive onze jours plus tard.
 - **Ordre chronologique** (la plus ancienne en premier), comme `git log --reverse` : le journal se lit comme
   l'histoire du projet.
 - Chaque entrée sépare **ce qui change pour le joueur**, **ce qui change techniquement** et **les migrations SQL**
   associées. Les migrations vivent dans `supabase/migrations/` ; l'ordre réel d'application est détaillé en
   [annexe A](#annexe-a--migrations--ordre-dapplication-et-dépendances).
-- Les deux dernières étapes (front 1 à 10 joueurs, documentation) sont **dans l'arbre de travail, pas encore
-  commitées** au moment où ce journal est écrit ; elles sont signalées comme telles.
+- Le journal a d'abord été écrit avant le commit `e4cb0d0` (11 septembre, 20:40), qui a livré d'un bloc le front 1 à
+  10 joueurs, `0007` et le dossier `docs/` : les mentions « arbre de travail » des étapes 6 et 7 datent de ce
+  moment-là. Seule l'**étape 8 est encore non commitée**.
 
 Pour l'architecture actuelle (tables, RPC, hooks, flux Realtime), voir [architecture](architecture.md) ; pour le design
 system, voir la [spec Globe Pop!](design-spec.md) ; pour l'installation, le [README](../README.md).
 
 ## Vue d'ensemble
 
-| # | Étape | Commit(s) | Heure | Migrations SQL |
+| # | Étape | Commit(s) | Quand | Migrations SQL |
 |---|---|---|---|---|
 | 1 | V1 « Boring Geo » : quiz géo en course à 2 joueurs | `fb44b34`, `431fcf7` | 14:20, 14:24 | `0001_schema.sql`, `0002_functions.sql`, `0003_seed_geo.sql` |
 | 2 | Miroir GitHub Pages | `13cfa63` | 14:30 | — |
 | 3 | Modes Drapeaux / Histoire, fin de partie quand tout le monde a fini | `998c559` | 14:51 | `0004_modes_and_end_rule.sql`, `0003_seed_histoire.sql` |
 | 4 | Refonte UI/UX « Globe Pop! » + sélecteur de modes | `e23d3ce`, `18dc51c` | 16:38, 16:40 | — |
 | 5 | Pivot « Boring Law » : cours CEDH, modes en base, révision | `e7421be` | 18:47 | `0005_courses_modes_review.sql`, `0003_seed_echr-anglais-s7.sql` (+ seeds géo/histoire régénérés) |
-| 6 | Parties de 1 à 10 joueurs (backend commité, front en cours) | `923ef17` + arbre de travail | 18:58 → | `0006_multiplayer.sql`, `0007_rank_by_score.sql` |
-| 7 | Documentation (`docs/`) | arbre de travail | — | — |
+| 6 | Parties de 1 à 10 joueurs (backend puis front) | `923ef17`, `e4cb0d0` | 18:58, 20:40 | `0006_multiplayer.sql`, `0007_rank_by_score.sql` |
+| 7 | Documentation (`docs/`) | `e4cb0d0` | 20:40 | — |
+| 8 | Troisième cours : Droit fiscal · S7 (examen oral, tags, 11 modes) | arbre de travail | 21-23 sept. | `0008_fiscal_tags_oral.sql` |
 
 ## 1. V1 « Boring Geo » — quiz géo en course à 2 joueurs
 
@@ -335,6 +337,83 @@ puis travail front **dans l'arbre de travail (non commité)** : 11 fichiers modi
 développeur qui découvre le projet retrouve sans lire tout le code où vit chaque règle (SQL, hooks, composants) et
 pourquoi elle est là. Aucun fichier de code n'est modifié par cette étape.
 
+## 8. Troisième cours — Droit fiscal · S7, un examen oral
+
+**Arbre de travail (non commité)**, 21-23 septembre 2026 : la banque est datée `built: 2026-09-21` (`meta` du JSON) et
+les deux migrations distantes portent les horodatages `20260921181347` puis `20260923074504`. Pas encore de commit :
+citer `git log` après coup plutôt que d'inventer un hash. 3 fichiers créés (`data/courses/droit-fiscal-s7.json`,
+`data/courses/droit-fiscal-s7.md`, `supabase/migrations/0008_fiscal_tags_oral.sql`), 5 fichiers de code modifiés
+(les deux scripts de seed, `src/types.ts`, `src/components/ReviewList.tsx`, `src/lib/subtype.ts`), plus la
+documentation.
+
+### Pour le joueur
+
+- Troisième cours : **« Droit fiscal · S7 »** (droit fiscal général, M1 Droit des affaires, IDAI Montpellier),
+  **188 questions en français**, thème `droit-fiscal-s7`, 13 sous-types (`intro`, `ir-champ`, `patrimoine`,
+  `salaires`, les quatre `bic-*`, `liquidation`, les quatre `tva-*`).
+- **L'examen n'est pas un QCM : c'est un oral de 3 questions de cours tirées au sort.** Chaque QCM est donc une brique
+  d'une réponse d'oral : il est rattaché à l'une des **50 questions de cours** (`or-01` à `or-50`) et son explication
+  commence par « À l'oral : » — ce qu'il faut réciter, articles et chiffres compris (les 188 questions ont les deux).
+- En **révision**, un encart violet « 🎤 Question de cours à l'oral » rappelle la question d'oral préparée par le QCM.
+  Il s'affiche **avant** l'écart cours / droit positif et avant l'explication : c'est lui que le prof demandera. Une
+  chip « 🎯 TD » marque les questions martelées en TD.
+- **11 modes** (`sort` 20 à 30), quatre d'entre eux filtrant par tag et non par sous-type (Oral blanc, Spécial TD,
+  Chiffres & articles, Pièges ; Tout le programme ne filtre ni par sous-type ni par tag) : Tout le programme (188),
+  Oral blanc (50, une question par question de cours), Spécial TD (66), Chiffres & articles (105), Pièges (94),
+  Introduction (16), IR : champ (14), Revenus catégoriels (23), BIC (73), Liquidation (13), TVA (49).
+- Le mode **proposé par défaut devient « Tout le programme » du droit fiscal** (`DEFAULT_MODE` passe de `echr:full` à
+  `fiscal:full`, utilisé par `api.createGame(nick, 20, 120, DEFAULT_MODE)` dans `src/pages/Home.tsx`).
+- Même principe de vérité qu'à l'étape 5 : **42 questions flaggées** (le cours contre le droit positif) et
+  **55 champs `disputed`** (divergences entre prises de notes, le CM de référence l'emporte).
+
+### Comment la banque a été construite
+
+Le pipeline est décrit en fin de fiche (`data/courses/droit-fiscal-s7.md`, section « Contrôles passés ») :
+
+| Étape | Ce qu'elle produit |
+|---|---|
+| Corpus | le dossier `S7/Droit fiscal` : le CM de référence (prise de notes Sibylle), les fiches d'examen, le corrigé du partiel de TD, trois prises de notes de recoupement, le plan de cours — listés dans `meta.sources` |
+| Génération thème par thème | chaque question adossée à des **lignes précises** d'un fichier du corpus (champ `source`, ex. `01-cm-sibylle.txt l. 4376-4453`) |
+| Relecture adversariale par thème | 13 relecteurs indépendants (réponses fausses, double réponse défendable, distracteur accidentellement vrai, erreur d'article ou de chiffre), puis 13 correcteurs qui appliquent thème par thème |
+| Critique transversale | doublons entre thèmes, cohérence des chiffres et des articles, homogénéité du ton des explications, équilibre des types et des difficultés |
+| Contrôles de schéma | IDs uniques, 4 propositions distinctes, index de réponse valide, aucun énoncé dupliqué, `oral` renseigné et pointant vers une question existante, **aucune des 50 questions de cours orpheline**, aucune référence positionnelle (« la proposition b »), aucune ligature héritée des PDF (« dé nit », « béné ce ») |
+
+### Techniquement
+
+- **Données du cours** : `data/courses/droit-fiscal-s7.json` = `meta`, `topics` (13), `modes` (11), **`oral`** et
+  `questions`. Une question porte `id`, `topic`, `type`, `difficulty`, `question`, `choices`, `answer`,
+  `explanation`, **`oral`** (id `or-NN`), **`tags`**, `source`, `flag?`, `disputed?`. Une entrée de la clé `oral`
+  porte `id`, `question`, `topic`, `td`, `probability`, `plan` et `sources`. La fiche compagnon
+  `data/courses/droit-fiscal-s7.md` (791 lignes) reprend le principe de vérité, le tableau des 42 flags, les modes,
+  les **50 questions de cours avec leur plan de réponse**, le format et les contrôles.
+- **Tags** : `td` (66), `chiffres` (105), `piege` (94), `oral-blanc` (50) — transversaux aux sous-types, c'est ce qui
+  permet un mode « Oral blanc » d'exactement une question par question de cours.
+- `scripts/lib/load-questions.mjs` : la ligne normalisée gagne deux colonnes en fin (**14 au lieu de 12**) :
+  `[…, qtype, tags, oral]`. `tags` est null si la liste est vide ; **`oral` est résolu de l'id vers le TEXTE** de la
+  question de cours (`Map` construite sur la clé `oral` du JSON, repli sur l'id si l'entrée manque) — c'est ce texte
+  qui s'affiche en révision, sans jointure supplémentaire.
+- `scripts/gen-seed-sql.mjs` : insère les deux colonnes, `tags` via
+  `array(select jsonb_array_elements_text(x->12))` quand l'élément est un tableau, `oral` en `x->>13`.
+- `src/types.ts` : `ReviewItem` gagne `oral: string | null` et `tags: string[]` ; `DEFAULT_MODE = 'fiscal:full'`.
+- `src/components/ReviewList.tsx` : entrée `oral` dans `NOTE` (bord et fond violets) ; l'ordre des encarts devient
+  **oral → flag → explication → disputed** ; chip `🎯 TD` dans l'en-tête quand `item.tags.includes('td')`.
+- `src/lib/subtype.ts` : 13 libellés FR de plus (`INTRO · SOURCES`, `BIC · PRINCIPES`, `TVA · DÉDUCTION`…).
+- **Seed** : la banque a d'abord été poussée à distance, puis `0003_seed_droit-fiscal-s7.sql` a été généré pour le dépôt (à appliquer après `0008`) ; la
+  banque a été poussée à distance par `SEED_SECRET=… node scripts/seed-remote.mjs droit-fiscal-s7` → 188 lignes. La
+  RPC temporaire `admin_seed_questions` a dû être **recréée** avec les colonnes `tags` / `oral` avant le seed, puis
+  supprimée (elle n'est toujours dans aucune migration).
+- Aucun changement dans `src/lib/api.ts`, les RPC ni les hooks : un cours de plus, c'est des données plus des lignes
+  dans `modes`.
+
+### Migrations SQL
+
+| Fichier | Contenu |
+|---|---|
+| `0008_fiscal_tags_oral.sql` (arbre de travail) | 1) `questions` gagne `tags text[]` (index GIN `questions_tags_idx`) et `oral text` (le **texte** de la question de cours, résolu au seed) ; `modes` gagne `tags text[]`. 2) `_pick_questions` recréée : elle lit `subtypes` **et** `tags` du mode et filtre `(v_subtypes is null or subtype = any(v_subtypes)) and (v_tags is null or tags && v_tags)` ; le repli `theme` / `theme:subtype` reste, sans tags. 3) `get_review` recréée : elle renvoie en plus `oral` et `tags` (`coalesce(to_json(q.tags), '[]')`, jamais null côté client). 4) `insert … on conflict (id) do update` des **11 modes** du cours (`sort` 20 à 30). |
+
+Appliquée sur la base de production en **deux migrations distantes** : `fiscal_tags_oral_schema` (colonnes, index,
+`_pick_questions`, `get_review`) puis `fiscal_modes` (les 11 lignes de `modes`).
+
 ## Annexe A — Migrations : ordre d'application et dépendances
 
 Les fichiers sont numérotés par étape fonctionnelle, pas par ordre d'exécution : les seeds `0003_*` ont été
@@ -350,11 +429,17 @@ régénérés à l'étape 5 avec des colonnes que seule `0005` crée. Sur une ba
 0003_seed_histoire.sql
 0006_multiplayer.sql
 0007_rank_by_score.sql
+0008_fiscal_tags_oral.sql            -- colonnes tags / oral, modes.tags, 11 modes fiscaux
+SEED_SECRET=... node scripts/seed-remote.mjs droit-fiscal-s7   -- 188 questions (seed versionné ensuite par gen-seed-sql.mjs)
 ```
 
 Sur la base de production, les migrations ont été appliquées au fil des étapes (les seeds géo / histoire d'abord au
 format 6 colonnes, puis rejoués au format 13 colonnes après `0005` : chaque seed commence par
-`delete from questions where theme = '<theme>'`, il est donc rejouable).
+`delete from questions where theme = '<theme>'`, il est donc rejouable). `0008` y a été appliquée en deux morceaux :
+`fiscal_tags_oral_schema` (21 septembre) puis `fiscal_modes` (23 septembre).
+
+**Attention à l'ordre, bis** : la banque de droit fiscal remplit `tags` et `oral`, deux colonnes que seule `0008`
+crée. Elle ne se seede donc qu'après `0008` — et `0008` elle-même exige la table `modes` de `0005`.
 
 | Fichier | Étape | Schéma | Fonctions (re)définies |
 |---|---|---|---|
@@ -365,6 +450,8 @@ format 6 colonnes, puis rejoués au format 13 colonnes après `0005` : chaque se
 | `0005_courses_modes_review.sql` | 5 | +7 colonnes sur `questions`, index, table `modes` | `_pick_questions` (table `modes`, recréée), `get_review` |
 | `0006_multiplayer.sql` | 6 | `games.max_players` | `join_game`, `start_game`, `_player_json`, `get_state` |
 | `0007_rank_by_score.sql` | 6 | — | `get_state` (rang sur le score seul) |
+| `0008_fiscal_tags_oral.sql` | 8 | `questions.tags` (+ index GIN) et `questions.oral`, `modes.tags`, 11 modes fiscaux | `_pick_questions` (filtre par tags), `get_review` (+ `oral`, `tags`) |
+| `0003_seed_droit-fiscal-s7.sql` | 8 | 188 lignes de `questions` (poussées d'abord par `seed-remote.mjs`, puis versionnées) — après `0008` | — |
 
 ## Annexe B — Évolution des RPC publiques
 
@@ -379,6 +466,9 @@ format 6 colonnes, puis rejoués au format 13 colonnes après `0005` : chaque se
 | `pass_question(p_token)` | créée | — | — | — |
 | `end_game_if_expired(p_game_id)` | créée | — | — | — |
 | `get_review(p_token)` | — | — | créée | — |
+
+À l'**étape 8** (`0008`), aucune signature ne bouge : `_pick_questions` (interne) gagne un filtre par tags et
+`get_review` renvoie deux champs de plus, `oral` et `tags`.
 
 Le client (`src/lib/api.ts`) n'a changé qu'à l'étape 5 (`getReview`, `listModes`) : les évolutions de `get_state`
 sont absorbées par les types de `src/types.ts` et par les composants.
@@ -406,7 +496,7 @@ git log --reverse --pretty=format:"%h %ad %s" --date=short
 # Fichiers touchés par étape
 git log --reverse --stat --pretty=format:"=== %h %ad %s ===" --date=iso
 
-# Ce qui n'est pas encore commité (étapes 6-front et 7)
+# Ce qui n'est pas encore commité (étape 8)
 git status --short
 git diff --stat HEAD
 ```
@@ -422,4 +512,8 @@ e23d3ce 2026-09-11 Refonte UI/UX gamifiée « Globe Pop! » + sélecteur de mode
 18dc51c 2026-09-11 Session périmée : retour à l'accueil au lieu de boucler en erreur
 e7421be 2026-09-11 Boring Geo devient Boring Law : apprentissage gamifié
 923ef17 2026-09-11 Backend 1 à 10 joueurs (solo autorisé), get_state renvoie le classement complet
+e4cb0d0 2026-09-11 Parties de 1 à 10 joueurs (solo, duel, groupe) + documentation complète
 ```
+
+L'étape 8 (droit fiscal) n'apparaît pas encore : elle est dans l'arbre de travail. Une fois commitée, remplacer
+« arbre de travail » par le hash dans le tableau de la vue d'ensemble et en tête de la section 8.

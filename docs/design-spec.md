@@ -856,7 +856,8 @@ drapeau, seul le pied peut nécessiter ≤ 160 px de scroll (Espace reste utilis
 
 Données : `api.getReview(token)` → `ReviewItem[]` (toutes les questions dans l'ordre joué : `chosen_index` null = sans
 réponse, `is_correct`, `explanation` (null en Culture G), `flag` = écart cours / droit positif, `disputed` = corrigé
-discutable, `difficulty` 1-3, `subtype`, `source`). Ne marche que `game.status === 'finished'` : `game_not_finished` →
+discutable, `difficulty` 1-3, `subtype`, `source`, `oral` = question de cours d'oral préparée par le QCM (droit
+fiscal ; null ailleurs), `tags` = étiquettes transversales, toujours un tableau). Ne marche que `game.status === 'finished'` : `game_not_finished` →
 on garde le squelette et on retente au prochain état ; autre erreur → `ErrorMsg` + « Réessayer ».
 
 1. **Compteurs** 15 px ink-soft « ✅ N bonnes · ❌ N fautes · ⏭️ N sans réponse · ⚠️ N à surveiller » (le dernier seulement
@@ -869,7 +870,8 @@ on garde le squelette et on retente au prochain état ; autre erreur → `ErrorM
 3. **Carte** (`<li>` `rounded-btn border-2 bg-card`, fond blanc pour les trois statuts) : bordure pleine `border-green`
    (bonne) / `border-red` (faute) / `border-line-strong` (sans réponse) + icône ✅ / ❌ / ⏭️ 22 px. En-tête = `<button
    aria-expanded>` : « Q{n} » + chips 12 px (sous-type `subtypeLabel`, et **visibles carte repliée** : « ⚠️ Cours ≠ droit
-   positif » `bg-yellow-soft border-yellow text-ink`, « 🤔 Discutable » `bg-orange-soft border-orange text-ink`) + étoiles
+   positif » `bg-yellow-soft border-yellow text-ink`, « 🤔 Discutable » `bg-orange-soft border-orange text-ink`, « 🎯 TD » ton
+   neutre si `tags` contient `td`) + étoiles
    de difficulté ; **prompt complet** 16 px ink, jamais d'ellipse (c'est le cœur de la révision) ; chevron ▾ (rotate-180).
 4. **Corps déplié** : `FlagFrame compactOnShort={false}` si image ; les 4 choix (`Keycap` du numéro, 16 px ink) —
    bonne réponse `bg-green-soft border-green-dark` + pastille ronde 24 px `bg-green text-ink` « ✓ » + libellé
@@ -877,7 +879,9 @@ on garde le squelette et on retente au prochain état ; autre erreur → `ErrorM
    pastille `bg-red text-white` « ✗ » 18 px gras (règle 4) + « TA RÉPONSE » ; chip « Toi » `bg-blue text-ink` sur mon
    choix ; les marqueurs flottent à droite (le texte long reprend toute la largeur dès la 2ᵉ ligne). Sans réponse : ligne
    « Tu n'as pas répondu à cette question (passée ou jamais atteinte). ». Puis les **Notes** (`rounded-btn border-2 p-3`,
-   titre 14 px uppercase ink, corps 16 px `leading-relaxed` ink, texte ink sur -soft) dans cet ordre : ⚠️ « Attention :
+   titre 14 px uppercase ink, corps 16 px `leading-relaxed` ink, texte ink sur -soft) dans cet ordre : 🎤 « Question de cours à
+   l'oral » `bg-purple-soft border-purple/40` (si `oral`, droit fiscal : c'est elle que le prof posera) ;
+   ⚠️ « Attention :
    le cours ≠ le droit positif » `bg-yellow-soft border-yellow` + seconde ligne « Pour l'examen, retiens la version du
    cours. » (avant l'explication : c'est ce qu'il faut retenir) ; 💡 « Pourquoi » `bg-blue-soft border-blue/40`
    (absente en Culture G) ; 🤔 « Corrigé discutable » `bg-orange-soft border-orange`. Source 13 px ink-soft.

@@ -59,6 +59,8 @@ cet ordre :
 | `0003_seed_geo.sql`, `0003_seed_histoire.sql`, `0003_seed_echr-anglais-s7.sql` | banques de questions (générées, voir §4) |
 | `0006_multiplayer.sql` | `games.max_players`, `join_game` jusqu'à 10, `start_game` en solo, `get_state` avec `players[]` classés et `rank` |
 | `0007_rank_by_score.sql` | `get_state` : rang « compétition » (1, 1, 3) sur le score seul, cohérent avec `winner_player_id` |
+| `0008_fiscal_tags_oral.sql` | `questions.tags` (+ index GIN `questions_tags_idx`) et `questions.oral`, `modes.tags` ; `_pick_questions` filtre aussi par tags (`tags && modes.tags`) ; `get_review` renvoie `oral` et `tags` ; les 11 modes du droit fiscal (`sort` 20-30) |
+| `0003_seed_droit-fiscal-s7.sql` | banque de droit fiscal (générée) : **après `0008`**, qui crée les colonnes `tags` et `oral` insérées par `scripts/gen-seed-sql.mjs` |
 
 Attention à la numérotation : les fichiers `0003_seed_*` sont **regénérés** par `scripts/gen-seed-sql.mjs` et
 insèrent dans les colonnes créées par `0005` (`explanation`, `difficulty`, …). Ils doivent donc passer **après**
@@ -150,10 +152,11 @@ Piège : `answers.question_id` référence `questions(id)` **sans `on delete cas
 
 ### Ajouter un mode ou un thème
 
-Un mode est une ligne de la table `modes` (`id, course, theme, label, description, emoji, subtypes, sort`) ; le client
-les lit avec `useModes()` (`src/hooks/useModes.ts`, cache module-level, groupés par `course`). `subtypes = null`
-= tout le thème. Ajouter un thème = nouveau JSON dans `data/`, seed, puis ses lignes dans `modes`. Le mode proposé à
-la création est `DEFAULT_MODE` (`src/types.ts`, `'echr:full'`). Les libellés français des sous-types du HUD sont
+Un mode est une ligne de la table `modes` (`id, course, theme, label, description, emoji, subtypes, tags, sort`) ; le client
+les lit avec `useModes()` (`src/hooks/useModes.ts`, cache module-level, groupés par `course`). `subtypes` et `tags`
+à null = tout le thème ; `tags` (ajouté en `0008`) filtre par étiquette (`tags && modes.tags`), en ET avec
+`subtypes`. Ajouter un thème = nouveau JSON dans `data/`, seed, puis ses lignes dans `modes`. Le mode proposé à
+la création est `DEFAULT_MODE` (`src/types.ts`, `'fiscal:full'`). Les libellés français des sous-types du HUD sont
 dans `src/lib/subtype.ts`.
 
 ## 5. Lancer et parcourir l'app

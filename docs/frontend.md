@@ -167,6 +167,8 @@ appelle une seule fois `api.endGameIfExpired(game.id)` (ref `expiredCalled`) pui
 
 Charge la table `modes` via `api.listModes()` une seule fois par session (cache **module-level**), renvoie
 `{ modes, loading, error, courses }` où `courses = groupByCourse(modes)` (`{ course, modes[] }[]`, ordre d'apparition).
+`listModes()` trie par `sort`, donc les groupes sortent dans cet ordre : **Anglais CEDH · S7** (10-16), **Droit fiscal · S7**
+(20-30), **Culture G** (50-52). Un cours de plus n'est qu'un groupe de plus : ni `groupByCourse` ni `ModePicker` ne changent.
 Il n'y a pas de réessai intégré : Lobby remonte le composant `ModesScope` (changement de `key`) pour relancer le chargement.
 
 ## 4. Pages
@@ -176,7 +178,8 @@ Il n'y a pas de réessai intégré : Lobby remonte le composant `ModesScope` (ch
 Rôle : saisir le pseudo, créer une partie ou en rejoindre une par code, reprendre une partie en cours.
 
 - Hooks : `useNavigate`, `useState` ; libs `loadNickname` / `saveNickname` / `loadSession` / `saveSession`, `avatarFor`.
-- Créer : `api.createGame(nick, 20, 120, DEFAULT_MODE)` (20 questions, 120 s, `DEFAULT_MODE = 'echr:full'`) puis
+- Créer : `api.createGame(nick, 20, 120, DEFAULT_MODE)` (20 questions, 120 s, `DEFAULT_MODE = 'fiscal:full'`,
+  soit « Droit fiscal · S7 › Tout le programme ») puis
   `saveSession` et `navigate('/lobby/<code>')`. Entrée dans le champ pseudo soumet le formulaire de création.
 - Rejoindre : `api.joinGame(code, nick)`, bouton actif seulement si pseudo non vide et code de 5 caractères
   (`joinDisabled`), halo `animate-pulse-glow pulse-glow-blue` quand prêt.
@@ -268,6 +271,9 @@ Rôle : verdict, classement, statistiques, révision, nouvelle partie.
 - Révision : `api.getReview(token)` une seule fois (`reviewReq` ref) ; `game_not_finished` → on garde le squelette et on
   retente au prochain `state` ; autre erreur → `ErrorMsg` + « Réessayer ». Filtre initial `'wrong'` s'il y a des fautes,
   sinon `'all'` ; chips `Tout / Fautes / Sans réponse / ⚠️ À surveiller` ; compteurs ✅ ❌ ⏭️ ⚠️.
+- `ReviewItem` (`src/types.ts`, renvoyé par `get_review`) porte en plus `oral: string | null` — le **texte** de la question
+  de cours d'oral que ce QCM prépare (droit fiscal ; `null` ailleurs) — et `tags: string[]` (`td`, `chiffres`,
+  `oral-blanc`, `piege`… ; tableau **toujours présent**, `[]` par défaut côté SQL, donc lu sans garde).
 - « Nouvelle partie 🔁 » (`clearSession()` + `/`) en raccourci compact sous le classement et en CTA `xl` en bas ;
   ancre `#revision` « 📖 Revoir mes fautes (n) ↓ ».
 
@@ -319,7 +325,7 @@ Rôle : verdict, classement, statistiques, révision, nouvelle partie.
 | `Avatar.tsx` · `Avatar` | `name`, `tone: 'me' \| 'opp' \| 'neutral'`, `size?: 28 \| 40 \| 56 \| 72 \| 96`, `crown?` | emoji `avatarFor(name)`, « ? » si vide, 👑 en `animate-crown-drop` |
 | `CodeTiles.tsx` · `CodeTiles` | `code`, `onCopy`, `copied` | 5 tuiles 3D (48 px sous 400 px, 56 px au-delà), vertes quand `copied` |
 | `ModePicker.tsx` · `ModePicker`, `modeTitle`, `findMode`, `CourseGroup` | `courses`, `loading`, `error`, `activeId`, `disabled`, `busy`, `onSelect(mode)`, `onRetry?` | groupes par cours, chips, description du mode actif, squelette, erreur + « Réessayer », id brut si mode inconnu |
-| `ReviewList.tsx` · `ReviewList`, `reviewStatus`, `isFlagged`, `ReviewFilter`, `ReviewStatus` | `items: ReviewItem[]`, `filter: 'all' \| 'wrong' \| 'unseen' \| 'flagged'` | cartes repliables (statut ✅ ❌ ⏭️, chips sous-type / ⚠️ / 🤔, difficulté ⭐), choix marqués, notes « Pourquoi » / « Attention » / « Discutable », source ; ouvertes d'emblée : fautes + sans réponse (tout si ≤ 10) ; « Tout déplier / replier » |
+| `ReviewList.tsx` · `ReviewList`, `reviewStatus`, `isFlagged`, `ReviewFilter`, `ReviewStatus` | `items: ReviewItem[]`, `filter: 'all' \| 'wrong' \| 'unseen' \| 'flagged'` | cartes repliables (statut ✅ ❌ ⏭️, chips sous-type / ⚠️ / 🤔 / 🎯 TD si `tags` contient `td`, difficulté ⭐), choix marqués, notes « 🎤 Question de cours à l'oral » (violet, si `oral`) puis « ⚠️ Attention » / « 💡 Pourquoi » / « 🤔 Corrigé discutable », source ; ouvertes d'emblée : fautes + sans réponse (tout si ≤ 10) ; « Tout déplier / replier » |
 | `ScoreCompare.tsx` · `ScoreCompare` | `me`, `opp`, `meName`, `oppName`, `delayMs?` | barre bleu / violet proportionnelle, écart « +N / −N / = » |
 | `Stars.tsx` · `Stars` | `score`, `total`, `delay?`, `label?` | 3 étoiles (≥ 40 / 65 / 85 %) en cascade avec `sfx.star`, `role="img"` |
 | `AnimatedNumber.tsx` · `AnimatedNumber` | `value`, `durationMs?` (800), `tick?`, `className?` | count-up via `useCountUp`, `sfx.countUp` à chaque entier si `tick` |
@@ -415,7 +421,7 @@ sauf ton `red`. `clearToasts()` vide tout (Game au démontage).
 | `confetti.ts` | `celebrate(kind: 'mini' \| 'burst' \| 'cannon', origin?: HTMLElement \| { x, y })` | canvas unique créé à la volée (`canvas-confetti`, `useWorker`), no-op en reduced motion ; `mini` 24 particules, `burst` 80, `cannon` deux canons tirés 3 fois (0 / 700 / 1400 ms) |
 | `streak.ts` | `StreakState`, `loadStreak(code)`, `saveStreak(code, s)` | `best` toujours ≥ `streak` |
 | `avatar.ts` | `AVATARS` (16 animaux), `avatarFor(name)` | hash djb2 du pseudo normalisé : même pseudo = même animal partout |
-| `subtype.ts` | `subtypeLabel(subtype)` | libellés FR en majuscules (géo, histoire, CEDH : `'article-6' → 'ART. 6 · PROCÈS ÉQUITABLE'`), repli `toUpperCase()` |
+| `subtype.ts` | `subtypeLabel(subtype)` | libellés FR en majuscules (géo, histoire, CEDH : `'article-6' → 'ART. 6 · PROCÈS ÉQUITABLE'` ; les 13 sous-types de droit fiscal : `intro`, `ir-champ`, `patrimoine`, `salaires`, `bic-principes`, `bic-charges`, `bic-plus-values`, `bic-regimes`, `liquidation`, `tva-champ`, `tva-territorialite`, `tva-exigible`, `tva-deductible` → `'tva-exigible' → 'TVA · EXIGIBILITÉ · TAUX'`), repli `toUpperCase()` |
 | `race.ts` | `RaceMode`, `raceModeOf(n)`, `ordinalFr(n)` (« 1er », « 2e »), `rankLabel(rank)` (🥇 🥈 🥉 puis ordinal) | partagé par Game / Hud / RaceStatus / useRaceEvents / Results |
 | `ranking.ts` | `rankOf(p, players)`, `sharedRank(p, players)`, `scoreless(players)`, `precisionOf(p)`, `ordinal` | **seule** source du rang affiché (rang compétition sur le score) ; `precisionOf` = `round(score / answered_count × 100)` ou `null` |
 | `spring.ts` | `SPRING = { type: 'spring', stiffness: 500, damping: 28, mass: 0.8 }` | transition commune `motion/react` |

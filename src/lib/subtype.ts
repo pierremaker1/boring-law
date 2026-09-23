@@ -53,6 +53,20 @@ const LABELS: Record<string, string> = {
   vocabulary: 'VOCABULAIRE',
   traps: 'PIÈGE',
   annales: 'ANNALES',
+  // droit fiscal
+  intro: 'INTRO · SOURCES',
+  'ir-champ': 'IR · CHAMP',
+  patrimoine: 'REVENUS DU PATRIMOINE',
+  salaires: 'SALAIRES · DIRIGEANTS',
+  'bic-principes': 'BIC · PRINCIPES',
+  'bic-charges': 'BIC · CHARGES',
+  'bic-plus-values': 'BIC · PLUS-VALUES',
+  'bic-regimes': 'BIC · RÉGIMES · BNC',
+  liquidation: 'LIQUIDATION DE L’IR',
+  'tva-champ': 'TVA · CHAMP',
+  'tva-territorialite': 'TVA · TERRITORIALITÉ',
+  'tva-exigible': 'TVA · EXIGIBILITÉ · TAUX',
+  'tva-deductible': 'TVA · DÉDUCTION',
 }
 
 export function subtypeLabel(subtype: string): string {

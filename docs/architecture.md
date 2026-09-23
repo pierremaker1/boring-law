@@ -57,7 +57,7 @@ par des fonctions Postgres.
 |---|---|---|
 | Front | Vite 8, React 19, TypeScript, Tailwind v4, react-router-dom v7, `motion`, `canvas-confetti` | `src/` |
 | Accès API | `@supabase/supabase-js` (`supabase.rpc(...)` et `supabase.from('modes')`) | `src/lib/api.ts`, `src/lib/supabase.ts` |
-| Logique de jeu | plpgsql, fonctions `security definer` | `supabase/migrations/0002_functions.sql`, `0004_*.sql`, `0005_*.sql`, `0006_multiplayer.sql`, `0007_rank_by_score.sql` |
+| Logique de jeu | plpgsql, fonctions `security definer` | `supabase/migrations/0002_functions.sql`, `0004_*.sql`, `0005_*.sql`, `0006_multiplayer.sql`, `0007_rank_by_score.sql`, `0008_fiscal_tags_oral.sql` |
 | Schéma | Postgres + RLS + publication Realtime | `supabase/migrations/0001_schema.sql` |
 | Banque de questions | JSON → SQL de seed généré | `data/`, `scripts/`, `supabase/migrations/0003_seed_*.sql` |
 
@@ -76,7 +76,7 @@ Ce que le serveur calcule et que le client ne fait que refléter :
 
 | Règle | Fonction | Détail |
 |---|---|---|
-| Tirage des questions (même set, même ordre pour tous) | `_pick_questions(p_mode, p_count)` | `order by random() limit p_count`, filtre par `modes.theme` / `modes.subtypes` |
+| Tirage des questions (même set, même ordre pour tous) | `_pick_questions(p_mode, p_count)` | `order by random() limit p_count`, filtre par `modes.theme` / `modes.subtypes` / `modes.tags` (`tags && modes.tags`) |
 | Code de partie à 5 lettres sans caractères ambigus | `_gen_code()` | alphabet `ABCDEFGHJKLMNPQRSTUVWXYZ`, boucle jusqu'à unicité |
 | File de questions par joueur | `players.queue int[]` | indices dans `games.question_ids` ; réponse = dépile la tête, passe = tête → fin de file |
 | Score | `submit_answer` | `+1` si `q.correct_index = p_choice_index`, une ligne dans `answers` (`unique (player_id, question_id)`) |
@@ -91,7 +91,7 @@ seules les RPC « publiques » sont appelables depuis le navigateur.
 
 Les migrations se superposent avec `create or replace function` : la version en vigueur d'une fonction
 est celle de la **dernière** migration qui la définit (`get_state` : `0007` ; `submit_answer` : `0004` ;
-`join_game`, `start_game` : `0006` ; `_pick_questions` : `0005`).
+`join_game`, `start_game` : `0006` ; `_pick_questions`, `get_review` : `0008`).
 
 Côté front, le miroir de cette API est l'objet `api` de `src/lib/api.ts` : une méthode par RPC, et un
 `ApiError` dont le `code` est le nom de l'exception SQL (`raise exception 'game_full'`), traduit en
@@ -104,7 +104,7 @@ pédagogiques, table `modes`) et `0006_multiplayer.sql` (`games.max_players`).
 
 | Table | Rôle | Colonnes notables |
 |---|---|---|
-| `questions` | banque de questions | `theme`, `subtype`, `prompt`, `choices jsonb` (4 choix), `correct_index` (0–3), `image_url`, `explanation`, `difficulty`, `flag`, `disputed`, `source`, `external_id`, `qtype` |
+| `questions` | banque de questions | `theme`, `subtype`, `prompt`, `choices jsonb` (4 choix), `correct_index` (0–3), `image_url`, `explanation`, `difficulty`, `flag`, `disputed`, `source`, `external_id`, `qtype`, `tags text[]` (index GIN), `oral` |
 | `modes` | modes proposés dans le salon, groupés par cours | `id` (ex. `echr:annales`), `course`, `theme`, `label`, `description`, `emoji`, `subtypes text[]` (`null` = tout le thème), `sort` |
 | `games` | une partie | `code` (unique), `status` (`lobby` / `playing` / `finished`), `theme` (contient un id de `modes`), `question_count` (5–100), `duration_seconds` (30–600), `max_players` (1–10), `question_ids uuid[]`, `host_player_id`, `winner_player_id`, `started_at`, `ends_at`, `finished_at` |
 | `players` | un joueur dans une partie | `game_id`, `nickname` (1–20 car.), `score`, `queue int[]`, `answered_count`, `finished_at` |
@@ -181,8 +181,8 @@ Routes (`src/App.tsx`, `BrowserRouter basename={import.meta.env.BASE_URL}`) : `/
 
 ### 5.1 Création — `create_game(p_nickname, p_question_count, p_duration_seconds, p_theme)`
 
-`Home.tsx` appelle `api.createGame(nick, 20, 120, DEFAULT_MODE)` (`DEFAULT_MODE = 'echr:full'`,
-`src/types.ts`). Côté SQL : tirage immédiat des questions (`_pick_questions`, erreur
+`Home.tsx` appelle `api.createGame(nick, 20, 120, DEFAULT_MODE)` (`DEFAULT_MODE = 'fiscal:full'`,
+`src/types.ts`, soit « Droit fiscal · S7 › Tout le programme »). Côté SQL : tirage immédiat des questions (`_pick_questions`, erreur
 `no_questions_for_theme` si le mode est vide), insertion de la partie avec `_gen_code()`, insertion du
 joueur, de son token, puis `host_player_id = pl.id`. Le `question_count` réel est
 `array_length(qids, 1)` : un mode qui contient moins de questions que demandé plafonne la partie.
@@ -236,7 +236,8 @@ en direct jusqu'au `status = 'finished'`, puis est redirigé vers `/results/<cod
 `Results.tsx` appelle `api.getReview` une fois `status === 'finished'`. La RPC renvoie **toutes** les
 questions de la partie dans l'ordre de `question_ids` (`unnest ... with ordinality`), jointes à ma
 réponse (`left join answers ... and a.player_id = pl.id`) : `correct_index`, `chosen_index` (null si
-jamais répondu), `is_correct`, `explanation`, `flag`, `disputed`, `source`. Si elle répond
+jamais répondu), `is_correct`, `explanation`, `flag`, `disputed`, `source`, `oral` (texte de la question de cours
+d'oral que le QCM prépare, null ailleurs) et `tags` (toujours un tableau). Si elle répond
 `game_not_finished` (course entre le poll et la clôture), le client retente au prochain état.
 L'API ne distingue pas « passée » de « jamais atteinte » : les deux apparaissent « sans réponse ».
 
@@ -357,11 +358,12 @@ sur l'un se rejoint depuis l'autre.
 ## 11. Banque de questions et seed
 
 - Sources : `data/questions/geo.json` (406), `data/questions/histoire.json` (252) au format simple
-  `{ subtype, prompt, choices, answer, iso? }` ; `data/courses/echr-anglais-s7.json` (250) au format
-  cours `{ meta, topics, modes, questions: [{ id, topic, type, difficulty, question, choices, answer,
-  explanation, source, flag?, disputed? }] }`.
+  `{ subtype, prompt, choices, answer, iso? }` ; `data/courses/echr-anglais-s7.json` (250) et
+  `data/courses/droit-fiscal-s7.json` (188, plus une clé `oral` : le stock des 50 questions de cours)
+  au format cours `{ meta, topics, modes, oral?, questions: [{ id, topic, type, difficulty, question,
+  choices, answer, explanation, source, flag?, disputed?, tags?, oral? }] }`.
 - `scripts/lib/load-questions.mjs` normalise les deux formats en lignes
-  `[subtype, prompt, choices, correct, iso, explanation, difficulty, flag, disputed, source, external_id, qtype]`,
+  `[subtype, prompt, choices, correct, iso, explanation, difficulty, flag, disputed, source, external_id, qtype, tags, oral]`,
   refuse les doublons et les questions sans 4 choix, et **mélange les choix de façon déterministe**
   (LCG à graine fixe `42`) pour ne pas biaiser la position de la bonne réponse.
 - `node scripts/gen-seed-sql.mjs <theme>` produit `supabase/migrations/0003_seed_<theme>.sql`

@@ -2,7 +2,9 @@
 
 Révise ton cours en solo ou jusqu'à 10, contre la montre. Zéro ennui garanti.
 
-Boring Law est un jeu web d'apprentissage gamifié : une course de quiz contre la montre, en solo, en duel ou jusqu'à 10 joueurs, chacun sur son ordi, pour réviser un cours sans s'ennuyer. Les modes sont regroupés par cours (table `modes`) : « Anglais CEDH · S7 » (tout le programme, annales, procédure, article par article, théorie et principes, vocabulaire, pièges) et « Culture G » (géographie, drapeaux, histoire). En fin de partie, un écran de révision reprend toutes les questions avec la bonne réponse et son explication.
+Boring Law est un jeu web d'apprentissage gamifié : une course de quiz contre la montre, en solo, en duel ou jusqu'à 10 joueurs, chacun sur son ordi, pour réviser un cours sans s'ennuyer. Les modes sont regroupés par cours (table `modes`) : « Anglais CEDH · S7 » (tout le programme, annales, procédure, article par article, théorie et principes, vocabulaire, pièges), « Droit fiscal · S7 » (tout le programme, oral blanc, spécial TD, chiffres et articles, pièges, puis chapitre par chapitre : introduction, IR, revenus catégoriels, BIC, liquidation, TVA) et « Culture G » (géographie, drapeaux, histoire). En fin de partie, un écran de révision reprend toutes les questions avec la bonne réponse et son explication.
+
+En droit fiscal, l'examen n'est pas un QCM mais un **oral de 3 questions de cours** : chaque QCM prépare une brique de l'une d'elles et affiche en révision, avant l'explication, la question de cours correspondante (« 🎤 Question de cours à l'oral »).
 
 ## Documentation
 
@@ -13,7 +15,7 @@ Ce fichier est le résumé pour un visiteur pressé. La documentation complète 
 | [docs/README.md](docs/README.md) | Index : le projet en dix lignes, par où commencer, conventions communes. |
 | [docs/architecture.md](docs/architecture.md) | Vue d'ensemble front / Supabase, flux d'une partie, responsabilités client / serveur. |
 | [docs/game-rules.md](docs/game-rules.md) | Les règles telles qu'elles sont codées en SQL : démarrage, file de questions, score, fin de partie, vainqueur, classement, solo / duel / groupe. |
-| [docs/database.md](docs/database.md) | Schéma, RPC publiques, helpers, RLS, Realtime, migrations `0001` → `0007`, seed. |
+| [docs/database.md](docs/database.md) | Schéma, RPC publiques, helpers, RLS, Realtime, migrations `0001` → `0008`, seed. |
 | [docs/frontend.md](docs/frontend.md) | Routes, pages, hooks, composants, libs, stockage local. |
 | [docs/content.md](docs/content.md) | Banques de questions (`data/questions/`, `data/courses/`), pipeline de seed, table `modes`, procédures d'ajout / correction. |
 | [docs/deployment.md](docs/deployment.md) | Vercel + miroir GitHub Pages, variables d'environnement, application des migrations, exploitation. |
@@ -47,6 +49,8 @@ Pour tester à 2 en local, ouvrir un second serveur sur un autre port (`npm run 
 
 ## Questions
 
-Sources : `data/questions/<theme>.json` (format simple : 406 géo, 252 histoire) et `data/courses/<theme>.json` (format riche avec explication, difficulté, source : 250 questions `echr-anglais-s7`). `node scripts/gen-seed-sql.mjs <theme>` génère `supabase/migrations/0003_seed_<theme>.sql` (les 4 choix sont mélangés de façon déterministe).
+Sources : `data/questions/<theme>.json` (format simple : 406 géo, 252 histoire) et `data/courses/<theme>.json` (format riche avec explication, difficulté, source : 250 questions `echr-anglais-s7` en anglais, 188 `droit-fiscal-s7` en français). `node scripts/gen-seed-sql.mjs <theme>` génère `supabase/migrations/0003_seed_<theme>.sql` (les 4 choix sont mélangés de façon déterministe).
 
-Un **mode** est soit un thème entier (`geo`, `histoire`), soit un sous-ensemble de sous-types (`geo:drapeau`, `echr:annales`) : `_pick_questions` filtre sur `theme` et, si présent, sur `subtypes`. Les modes vivent dans la table `modes` (`supabase/migrations/0005_courses_modes_review.sql`, colonnes `id, course, theme, label, description, emoji, subtypes, sort`) et sont lus côté client par `useModes()` (`src/hooks/useModes.ts`). Ajouter un mode = une ligne dans `modes` ; ajouter un thème = nouveau JSON + seed (`scripts/seed-remote.mjs`, voir les commentaires) + ses lignes dans `modes`. Le mode proposé par défaut est `DEFAULT_MODE` (`src/types.ts`). Procédures complètes : [docs/content.md](docs/content.md).
+Une banque de cours peut aussi porter des `tags` par question (`td`, `chiffres`, `oral-blanc`, `piege`) et une clé `oral` : le stock des 50 questions de cours de l'oral de fiscal (`or-01`…`or-50`), chaque QCM renvoyant à la sienne par son id. `scripts/lib/load-questions.mjs` résout cet id vers le **texte** de la question, seul stocké en base (`questions.oral`).
+
+Un **mode** est soit un thème entier (`geo`, `histoire`), soit un sous-ensemble de sous-types (`geo:drapeau`, `echr:annales`), soit un filtre par tags (`fiscal:oral`, `fiscal:td`) : `_pick_questions` filtre sur `theme` et, s'ils sont présents, sur `subtypes` puis sur `tags`. Les modes vivent dans la table `modes` (`supabase/migrations/0005_courses_modes_review.sql`, colonnes `id, course, theme, label, description, emoji, subtypes, sort` ; `tags` ajoutée par `0008_fiscal_tags_oral.sql`) et sont lus côté client par `useModes()` (`src/hooks/useModes.ts`). Ajouter un mode = une ligne dans `modes` ; ajouter un thème = nouveau JSON + seed (`scripts/seed-remote.mjs`, voir les commentaires) + ses lignes dans `modes`. Le mode proposé par défaut est `DEFAULT_MODE` (`src/types.ts`, aujourd'hui `fiscal:full`). Procédures complètes : [docs/content.md](docs/content.md).

@@ -88,7 +88,9 @@ export interface ReviewItem {
   flag: string | null
   disputed: string | null
   source: string | null
+  oral: string | null      // question de cours (oral) que ce QCM prépare
+  tags: string[]           // td, chiffres, oral-blanc, piege…
 }
 
 // Mode proposé par défaut à la création d'une partie
-export const DEFAULT_MODE = 'echr:full'
+export const DEFAULT_MODE = 'fiscal:full'

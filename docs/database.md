@@ -15,7 +15,7 @@ questions ──< answers >── players ──< player_tokens
 - Une **partie** (`games`) porte un code à 5 lettres, un mode, un timer, et la liste ordonnée des questions tirées (`question_ids`).
 - Chaque **joueur** (`players`) avance dans sa propre file d'indices (`queue`) sur ce même tableau de questions ; son **jeton** secret (`player_tokens`) est la seule preuve d'identité.
 - Chaque réponse est journalisée dans **`answers`** (sert au score et à l'écran de révision).
-- **`modes`** est un catalogue statique (un mode = un thème entier ou un sous-ensemble de sous-types), lu par le front pour le sélecteur.
+- **`modes`** est un catalogue statique (un mode = un thème entier, un sous-ensemble de sous-types et/ou un filtre par tags), lu par le front pour le sélecteur.
 - Le client ne lit en direct que `games`, `players` (Realtime) et `modes` ; tout le reste passe par les RPC.
 
 ## Schéma
@@ -29,8 +29,8 @@ Banque de questions QCM, toutes avec exactement 4 choix.
 | Colonne | Type | Rôle / contraintes |
 |---|---|---|
 | `id` | `uuid` PK | `default gen_random_uuid()` |
-| `theme` | `text` not null | Banque d'origine : `geo`, `histoire`, `echr-anglais-s7` |
-| `subtype` | `text` not null | Sous-thème (`capitale`, `drapeau`, `antiquite`, `article-6`, `traps`…) ; les modes filtrent dessus |
+| `theme` | `text` not null | Banque d'origine : `geo`, `histoire`, `echr-anglais-s7`, `droit-fiscal-s7` |
+| `subtype` | `text` not null | Sous-thème (`capitale`, `drapeau`, `antiquite`, `article-6`, `traps`, `bic-charges`…) ; les modes filtrent dessus |
 | `prompt` | `text` not null | Énoncé |
 | `choices` | `jsonb` not null | Tableau JSON de 4 chaînes (ordre déjà mélangé au seed) |
 | `correct_index` | `int` not null | Index du bon choix, `check (correct_index between 0 and 3)` |
@@ -43,8 +43,10 @@ Banque de questions QCM, toutes avec exactement 4 choix.
 | `source` | `text` | Référence dans le cours (0005) |
 | `external_id` | `text` | Identifiant stable du JSON source, ex. `fnd-001` (0005) |
 | `qtype` | `text` | Type pédagogique (`concept`, …) (0005) |
+| `tags` | `text[]` | Étiquettes transversales, indépendantes du sous-type (`td`, `chiffres`, `oral-blanc`, `piege`) ; les modes peuvent filtrer dessus (0008) |
+| `oral` | `text` | **Texte** de la question de cours d'oral que ce QCM prépare (résolu de l'id `or-12` vers son libellé au seed), null si aucune (0008) |
 
-Index : `questions_theme_idx (theme)`, `questions_theme_subtype_idx (theme, subtype)`.
+Index : `questions_theme_idx (theme)`, `questions_theme_subtype_idx (theme, subtype)`, `questions_tags_idx` (GIN sur `tags`, pour l'opérateur `&&`).
 RLS activée **sans aucune policy** : la table est invisible pour `anon`, seules les fonctions `security definer` la lisent.
 
 ### `games`
@@ -108,20 +110,39 @@ Contrainte `unique (player_id, question_id)` : une seule réponse par joueur et 
 
 ### `modes`
 
-Catalogue des modes proposés dans le salon (0005). Un mode = un thème entier (`subtypes` null) ou une liste de sous-types.
+Catalogue des modes proposés dans le salon (0005). Un mode = un thème entier (`subtypes` et `tags` null), une liste de sous-types, une liste de tags (0008), ou un croisement des deux.
 
 | Colonne | Type | Rôle |
 |---|---|---|
-| `id` | `text` PK | Ce que le client envoie dans `p_theme` (`echr:full`, `geo`, `geo:drapeau`, `histoire`…) |
-| `course` | `text` not null | Groupe affiché (`Anglais CEDH · S7`, `Culture G`) |
+| `id` | `text` PK | Ce que le client envoie dans `p_theme` (`echr:full`, `fiscal:full`, `geo`, `geo:drapeau`, `histoire`…) |
+| `course` | `text` not null | Groupe affiché (`Anglais CEDH · S7`, `Droit fiscal · S7`, `Culture G`) |
 | `theme` | `text` not null | Valeur de `questions.theme` |
 | `label` | `text` not null | Nom court |
 | `description` | `text` | Sous-titre |
 | `emoji` | `text` | Icône |
-| `subtypes` | `text[]` | Filtre sur `questions.subtype` ; null = tout le thème |
+| `subtypes` | `text[]` | Filtre sur `questions.subtype` ; null = pas de filtre |
+| `tags` | `text[]` | Filtre sur `questions.tags` (intersection `&&` : au moins un tag commun) ; null = pas de filtre (0008) |
 | `sort` | `int` not null | Ordre d'affichage, défaut 0 |
 
-Lecture publique (policy `modes readable`) : le client fait `supabase.from('modes').select('*').order('sort')` (`api.listModes`, mis en cache par `useModes()`). Dix modes sont insérés par la migration 0005 (`on conflict (id) do update`, donc rejouable).
+Les deux filtres se combinent en **ET** : un mode avec `subtypes` et `tags` non nuls ne tire que les questions qui satisfont les deux. Un mode « transversal » (Oral blanc, Spécial TD…) laisse `subtypes` à null et ne filtre que par tag ; il balaie donc tout le thème.
+
+Lecture publique (policy `modes readable`) : le client fait `supabase.from('modes').select('*').order('sort')` (`api.listModes`, mis en cache par `useModes()`). Vingt-et-un modes en base : dix insérés par 0005 (CEDH `sort` 10–16, Culture G 50–52), onze par 0008 pour le droit fiscal (`sort` 20–30, donc intercalés entre les deux cours). Les deux migrations utilisent `on conflict (id) do update`, donc rejouables.
+
+Modes du droit fiscal (0008), avec le nombre de questions tirables (banque de 188) :
+
+| Id | Label | Filtre | Questions |
+|---|---|---|---|
+| `fiscal:full` | Tout le programme | aucun | 188 |
+| `fiscal:oral` | Oral blanc | tag `oral-blanc` | 50 |
+| `fiscal:td` | Spécial TD | tag `td` | 66 |
+| `fiscal:chiffres` | Chiffres & articles | tag `chiffres` | 105 |
+| `fiscal:pieges` | Pièges | tag `piege` | 94 |
+| `fiscal:intro` | Introduction | subtype `intro` | 16 |
+| `fiscal:ir-champ` | IR : champ | subtype `ir-champ` | 14 |
+| `fiscal:categories` | Revenus catégoriels | subtypes `patrimoine`, `salaires` | 23 |
+| `fiscal:bic` | BIC | subtypes `bic-principes`, `bic-charges`, `bic-plus-values`, `bic-regimes` | 73 |
+| `fiscal:liquidation` | Liquidation | subtype `liquidation` | 13 |
+| `fiscal:tva` | TVA | subtypes `tva-champ`, `tva-territorialite`, `tva-exigible`, `tva-deductible` | 49 |
 
 ## Sécurité : RLS, rôles et `security definer`
 
@@ -256,7 +277,7 @@ Sans jeton : finalise la partie si `status = 'playing'` et `now() >= ends_at`, s
 
 #### `get_review(p_token uuid) returns json`
 
-Écran de révision (0005). Finalise si le timer est dépassé, puis lève `game_not_finished` tant que le statut n'est pas `finished` (le client réessaie au prochain état). Renvoie un tableau ordonné de **toutes** les questions de la partie (`unnest(question_ids) with ordinality`), jointes à la réponse éventuelle du joueur, **avec** `correct_index` et `explanation` :
+Écran de révision (0005, étendue en 0008). Finalise si le timer est dépassé, puis lève `game_not_finished` tant que le statut n'est pas `finished` (le client réessaie au prochain état). Renvoie un tableau ordonné de **toutes** les questions de la partie (`unnest(question_ids) with ordinality`), jointes à la réponse éventuelle du joueur, **avec** `correct_index` et `explanation` :
 
 ```json
 [
@@ -266,18 +287,29 @@ Sans jeton : finalise la partie si `status = 'playing'` et `now() >= ends_at`, s
     "choices": ["…", "…", "…", "…"], "image_url": null,
     "correct_index": 3, "chosen_index": 3, "is_correct": true,
     "explanation": "Rights are inherent: they belong to everyone by virtue of being human…",
-    "flag": null, "disputed": null, "source": "CM Anglais, Section 1 ; Plan I.A"
+    "flag": null, "disputed": null, "source": "CM Anglais, Section 1 ; Plan I.A",
+    "oral": null, "tags": []
   },
   {
     "position": 2, "id": "…", "external_id": "fnd-002", "subtype": "foundations", "difficulty": 1,
     "prompt": "…", "choices": ["…", "…", "…", "…"], "image_url": null,
     "correct_index": 1, "chosen_index": null, "is_correct": null,
-    "explanation": "…", "flag": null, "disputed": null, "source": "…"
+    "explanation": "…", "flag": null, "disputed": null, "source": "…",
+    "oral": null, "tags": []
   }
 ]
 ```
 
 `chosen_index` / `is_correct` sont null pour une question non répondue (timer écoulé ou passée). Type `ReviewItem` dans `src/types.ts`. `[]` si aucune question (`coalesce`).
+
+Depuis 0008, chaque élément porte aussi deux champs alimentés par le cours de droit fiscal :
+
+- `oral` : le texte de la question de cours que ce QCM prépare, ou null. Le client (`ReviewList`) l'affiche dans un encadré « 🎤 Question de cours à l'oral », avant le flag et l'explication.
+- `tags` : `coalesce(to_json(q.tags), '[]'::json)`, donc toujours un tableau (jamais null) même quand la colonne est null.
+
+```json
+{ "…": "…", "oral": "Définissez l'impôt (Gaston Jèze), distinguez-le de la taxe…", "tags": ["td", "chiffres"] }
+```
 
 ### Fonctions internes
 
@@ -285,7 +317,7 @@ Sans jeton : finalise la partie si `status = 'playing'` et `now() >= ends_at`, s
 |---|---|---|
 | `_gen_code` | `() returns text` | Boucle jusqu'à trouver un code de 5 lettres absent de `games` ; alphabet `ABCDEFGHJKLMNPQRSTUVWXYZ` (sans I ni O, 24⁵ ≈ 8 M de codes) |
 | `_player_from_token` | `(p_token uuid) returns players` | Jointure `players` × `player_tokens` ; lève `invalid_token` |
-| `_pick_questions` | `(p_mode text, p_count int) returns uuid[]` | Résout le mode : ligne de `modes` si `p_mode` en est un id, sinon rétro-compatibilité `theme` ou `theme:subtype`. Filtre `theme = …` et, si `subtypes` non null, `subtype = any(subtypes)` ; `order by random() limit p_count` ; `'{}'` si rien |
+| `_pick_questions` | `(p_mode text, p_count int) returns uuid[]` | Résout le mode : ligne de `modes` si `p_mode` en est un id (on en tire `theme`, `subtypes`, `tags`), sinon rétro-compatibilité `theme` ou `theme:subtype` (`tags` alors null). Filtre `theme = v_theme and (v_subtypes is null or subtype = any(v_subtypes)) and (v_tags is null or tags && v_tags)` ; `order by random() limit p_count` ; `'{}'` si rien. Réécrite en 0008 pour les tags |
 | `_finalize_game` | `(p_game_id uuid) returns void` | `winner_player_id` = joueur au score max s'il est seul, null sinon ; `status = 'finished'`, `finished_at = now()`. Idempotente : `where status = 'playing'` |
 | `_current_question` | `(pl players, g games) returns json` | Null hors `playing` ou file vide ; sinon `questions[question_ids[queue[1] + 1]]` (indices 0-based dans la file, tableaux Postgres 1-based) réduite à `id, subtype, prompt, choices, image_url` |
 | `_player_json` | `(p players, p_rank int) returns json` | Sérialise un joueur (`id, nickname, score, answered_count, remaining, finished_at, rank`) ; `immutable` |
@@ -332,8 +364,9 @@ Les violations de `check`/`unique` (pseudo trop long, réglages hors bornes, dou
 | `0005_courses_modes_review.sql` | Colonnes pédagogiques sur `questions` (`explanation`, `difficulty`, `flag`, `disputed`, `source`, `external_id`, `qtype`) + index `(theme, subtype)` ; table `modes` + policy + 10 modes ; `_pick_questions` piloté par `modes` (drop/create, re-`revoke`) ; RPC `get_review` |
 | `0006_multiplayer.sql` | `games.max_players` ; `join_game` jusqu'à `max_players` ; `start_game` sans minimum (solo) ; `_player_json` ; `get_state` renvoie `players` classés, `me.rank`, `max_players`, `player_count`. Dans cette version le rang suit l'ordre complet `score desc, answered_count desc, created_at asc` |
 | `0007_rank_by_score.sql` | `get_state` seulement : le rang devient un rang « compétition » sur le score seul (1, 1, 3), aligné sur `winner_player_id` ; l'ordre du tableau `players` garde le tri fin (score, avancement, arrivée) |
+| `0008_fiscal_tags_oral.sql` | `questions.tags` + index GIN `questions_tags_idx`, `questions.oral` ; `modes.tags` ; `_pick_questions` filtre aussi par tags (`tags && v_tags`, re-`revoke`) ; `get_review` renvoie `oral` et `tags` ; les 11 modes du cours de droit fiscal (`sort` 20–30) |
 
-Les fichiers 0003 sont des seeds de données (pas de DDL) ; ils sont préfixés `0003` parce qu'ils se rejouent indépendamment des autres. Les autres migrations utilisent `create or replace` / `if not exists` et peuvent être rejouées, sauf `0001` (`create table` sans `if not exists`). Quand une fonction est redéfinie plusieurs fois (`_pick_questions` en 0002/0004/0005, `submit_answer` en 0002/0004, `get_state` en 0002/0006/0007), c'est la **dernière migration** qui fait foi.
+Les fichiers 0003 sont des seeds de données (pas de DDL) ; ils sont préfixés `0003` parce qu'ils se rejouent indépendamment des autres. Les autres migrations utilisent `create or replace` / `if not exists` et peuvent être rejouées, sauf `0001` (`create table` sans `if not exists`). Quand une fonction est redéfinie plusieurs fois (`_pick_questions` en 0002/0004/0005/0008, `submit_answer` en 0002/0004, `get_state` en 0002/0006/0007, `get_review` en 0005/0008), c'est la **dernière migration** qui fait foi.
 
 ### Appliquer une migration
 
@@ -348,7 +381,7 @@ Pour un correctif de fonction, appliquer un `create or replace function …` pui
 
 ### État constaté sur le projet Supabase
 
-`list_migrations` (projet `kqgdlfrirkisxcdodcdj`, 11 septembre 2026) : `schema`, `functions`, `fix_gen_code`, `modes_and_end_rule`, `courses_modes_review`, `multiplayer`, `multiplayer_rank_cast`, `rank_by_score`, `rank_by_score_fix`. Les entrées `*_fix` / `*_cast` sont des correctifs appliqués à chaud et reportés ensuite dans le fichier concerné (`0002_functions.sql`, `0006_multiplayer.sql` pour le cast `rk::int`, `0007_rank_by_score.sql`) : les définitions en base correspondent aux fichiers du dépôt (`get_state` en base utilise bien `rank() over (order by score desc)`). Les seeds n'apparaissent pas dans cet historique (chargés hors `apply_migration`, voir [Appliquer une migration](#appliquer-une-migration)). Questions en base : 250 `echr-anglais-s7`, 406 `geo`, 252 `histoire`.
+`list_migrations` (projet `kqgdlfrirkisxcdodcdj`, 23 septembre 2026), onze entrées dans l'ordre : `schema`, `functions`, `fix_gen_code`, `modes_and_end_rule`, `courses_modes_review`, `multiplayer`, `multiplayer_rank_cast`, `rank_by_score`, `rank_by_score_fix`, `fiscal_tags_oral_schema`, `fiscal_modes`. Les entrées `*_fix` / `*_cast` sont des correctifs appliqués à chaud et reportés ensuite dans le fichier concerné (`0002_functions.sql`, `0006_multiplayer.sql` pour le cast `rk::int`, `0007_rank_by_score.sql`) : les définitions en base correspondent aux fichiers du dépôt (`get_state` en base utilise bien `rank() over (order by score desc)`, `_pick_questions` filtre bien par `tags && v_tags`). `0008_fiscal_tags_oral.sql` a été appliqué en **deux** migrations distantes : `fiscal_tags_oral_schema` (colonnes, index, `_pick_questions`, `get_review`) puis `fiscal_modes` (les 11 lignes de `modes`) ; le dépôt garde un seul fichier. Les seeds n'apparaissent pas dans cet historique (chargés hors `apply_migration`, voir [Appliquer une migration](#appliquer-une-migration)). Questions en base : 188 `droit-fiscal-s7`, 250 `echr-anglais-s7`, 406 `geo`, 252 `histoire` (1096 au total). Modes en base : 21.
 
 ## Seed des questions
 
@@ -357,15 +390,15 @@ Pour un correctif de fonction, appliquer un `create or replace function …` pui
 Deux formats de banque, lus par `scripts/lib/load-questions.mjs` (`loadQuestions(theme)`) :
 
 - `data/questions/<theme>.json` — tableau simple `{ subtype, prompt, choices[4], answer, iso? }` (`geo.json`, `histoire.json`) ;
-- `data/courses/<theme>.json` — `{ meta, topics, modes, questions: [{ id, topic, type, difficulty, question, choices[4], answer, explanation, source, flag?, disputed? }] }` (`echr-anglais-s7.json`, accompagné du cours en `echr-anglais-s7.md`).
+- `data/courses/<theme>.json` — `{ meta, topics, modes, oral?, questions: [{ id, topic, type, difficulty, question, choices[4], answer, explanation, source, flag?, disputed?, tags?, oral? }] }` (`echr-anglais-s7.json` et `droit-fiscal-s7.json`, chacun accompagné du cours en `.md`).
 
 `loadQuestions` cherche d'abord `data/courses/`, puis `data/questions/`. Il valide (4 choix, `answer` dans 0–3, pas de doublon `prompt + iso`), **mélange les 4 choix** avec un générateur déterministe (LCG, graine 42 : le seed est reproductible) et produit des lignes normalisées :
 
 ```
-[subtype, prompt, choices, correct_index, iso, explanation, difficulty, flag, disputed, source, external_id, qtype]
+[subtype, prompt, choices, correct_index, iso, explanation, difficulty, flag, disputed, source, external_id, qtype, tags, oral]
 ```
 
-`iso` devient `image_url = 'https://flagcdn.com/w320/<iso>.png'` côté SQL.
+`iso` devient `image_url = 'https://flagcdn.com/w320/<iso>.png'` côté SQL. Les deux dernières colonnes datent de 0008 : `tags` vaut null si la question n'en porte pas (jamais un tableau vide), et `oral` est **résolu** de l'id de question de cours (`or-12`) vers son texte via la clé `oral` de la banque (l'id brut est conservé si l'entrée est introuvable).
 
 ### Voie 1 : fichier SQL versionné
 
@@ -383,7 +416,11 @@ Le fichier généré fait `delete from questions where theme = '<theme>'` puis u
 ```bash
 SEED_SECRET=un-secret-long node scripts/seed-remote.mjs geo
 # 406 questions insérées (geo, source data/questions/geo.json)
+SEED_SECRET=un-secret-long node scripts/seed-remote.mjs droit-fiscal-s7
+# 188 questions insérées (droit-fiscal-s7, source data/courses/droit-fiscal-s7.json)
 ```
+
+C'est par cette voie qu'a été chargée la banque de droit fiscal ; `0003_seed_droit-fiscal-s7.sql` a ensuite été généré pour le dépôt (il s'applique après `0008`, qui crée `tags` et `oral`). La source de vérité reste `data/courses/droit-fiscal-s7.json`.
 
 La RPC **n'est pas versionnée** (ni dans le dépôt, ni présente en base en temps normal) : on la crée juste avant, on la supprime juste après, pour ne jamais laisser une porte d'écriture ouverte avec la clé anon. Définition compatible avec le script et le format de lignes (même `insert` que `gen-seed-sql.mjs`) :
 
@@ -396,10 +433,12 @@ begin
   if p_secret is distinct from 'un-secret-long' then raise exception 'forbidden'; end if;
   delete from questions where theme = p_theme;
   insert into questions (theme, subtype, prompt, choices, correct_index, image_url,
-                         explanation, difficulty, flag, disputed, source, external_id, qtype)
+                         explanation, difficulty, flag, disputed, source, external_id, qtype, tags, oral)
   select p_theme, x->>0, x->>1, x->2, (x->>3)::int,
          case when x->>4 is null then null else 'https://flagcdn.com/w320/' || (x->>4) || '.png' end,
-         x->>5, (x->>6)::int, x->>7, x->>8, x->>9, x->>10, x->>11
+         x->>5, (x->>6)::int, x->>7, x->>8, x->>9, x->>10, x->>11,
+         case when jsonb_typeof(x->12) = 'array' then array(select jsonb_array_elements_text(x->12)) else null end,
+         x->>13
   from jsonb_array_elements(p_rows) x;
   get diagnostics n = row_count;
   return n;
@@ -416,8 +455,8 @@ La procédure pas à pas (y compris la variante PowerShell de `SEED_SECRET`) est
 
 ### Ajouter un thème ou un mode
 
-- **Nouveau mode sur un thème existant** : une ligne dans `modes` (`id`, `course`, `theme`, `label`, `description`, `emoji`, `subtypes`, `sort`). Rien à déployer côté front : `useModes()` lit la table au chargement.
-- **Nouveau thème** : un JSON dans `data/questions/` ou `data/courses/`, un seed (voie 1 ou 2), puis ses lignes dans `modes`. Le mode par défaut du formulaire de création est `DEFAULT_MODE` dans `src/types.ts` (`echr:full`).
+- **Nouveau mode sur un thème existant** : une ligne dans `modes` (`id`, `course`, `theme`, `label`, `description`, `emoji`, `subtypes`, `tags`, `sort`). Rien à déployer côté front : `useModes()` lit la table au chargement.
+- **Nouveau thème** : un JSON dans `data/questions/` ou `data/courses/`, un seed (voie 1 ou 2), puis ses lignes dans `modes`. Le mode par défaut du formulaire de création est `DEFAULT_MODE` dans `src/types.ts` (`fiscal:full` depuis l'ajout du droit fiscal).
 - Vérifier ensuite que chaque mode a au moins 5 questions (`games.question_count` a un `check ≥ 5` : un mode plus petit fait échouer `create_game` sur la contrainte, pas sur `no_questions_for_theme`).
 
 ### Attention au re-seed d'une banque
@@ -444,13 +483,15 @@ group by theme, status
 order by theme, status;
 ```
 
-Questions disponibles par mode (détecte un mode trop petit ou un `subtypes` mal orthographié) :
+Questions disponibles par mode (détecte un mode trop petit, un `subtypes` ou un `tags` mal orthographié) — le `on` reprend exactement le filtre de `_pick_questions` :
 
 ```sql
 select m.id, m.label, count(q.id) as questions
 from modes m
 left join questions q
-  on q.theme = m.theme and (m.subtypes is null or q.subtype = any(m.subtypes))
+  on q.theme = m.theme
+ and (m.subtypes is null or q.subtype = any(m.subtypes))
+ and (m.tags is null or q.tags && m.tags)
 group by m.id, m.label, m.sort
 order by m.sort;
 
@@ -458,6 +499,11 @@ order by m.sort;
 select m.id, s as subtype_manquant
 from modes m, unnest(m.subtypes) as s
 where not exists (select 1 from questions q where q.theme = m.theme and q.subtype = s);
+
+-- tags déclarés dans modes mais absents de questions
+select m.id, t as tag_manquant
+from modes m, unnest(m.tags) as t
+where not exists (select 1 from questions q where q.theme = m.theme and q.tags @> array[t]);
 ```
 
 Répartition des questions par thème et sous-type :

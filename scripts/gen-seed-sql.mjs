@@ -11,10 +11,12 @@ const payload = JSON.stringify(rows).replace(/'/g, "''")
 const sql = `-- Seed ${theme} (${rows.length} questions, source ${path}) — généré par scripts/gen-seed-sql.mjs
 delete from questions where theme = '${theme}';
 insert into questions (theme, subtype, prompt, choices, correct_index, image_url,
-                       explanation, difficulty, flag, disputed, source, external_id, qtype)
+                       explanation, difficulty, flag, disputed, source, external_id, qtype, tags, oral)
 select '${theme}', x->>0, x->>1, x->2, (x->>3)::int,
        case when x->>4 is null then null else 'https://flagcdn.com/w320/' || (x->>4) || '.png' end,
-       x->>5, (x->>6)::int, x->>7, x->>8, x->>9, x->>10, x->>11
+       x->>5, (x->>6)::int, x->>7, x->>8, x->>9, x->>10, x->>11,
+       case when jsonb_typeof(x->12) = 'array' then array(select jsonb_array_elements_text(x->12)) else null end,
+       x->>13
 from jsonb_array_elements('${payload}'::jsonb) x;
 `
 

@@ -4,7 +4,7 @@ Boring Law est une course de quiz contre la montre pour réviser un cours : une 
 
 Voir aussi : [architecture](architecture.md) (schéma, RPC, Realtime), [contenu pédagogique](content.md) (banques de questions, seeds, ajout d'un cours ou d'un mode), [design-spec](design-spec.md) (design system « Globe Pop! », §5 gamification, §6 pages), et le [README](../README.md).
 
-> **Principe n° 1 : le score est calculé par le serveur.** Toute la logique de jeu vit dans des fonctions Postgres `security definer` (`supabase/migrations/0002_functions.sql`, amendées par `0004`, `0005`, `0006`, `0007`). Le client (`src/lib/api.ts`) ne fait qu'appeler ces RPC et afficher `get_state`. Les effets visuels (série, annonces, confettis) sont purement cosmétiques.
+> **Principe n° 1 : le score est calculé par le serveur.** Toute la logique de jeu vit dans des fonctions Postgres `security definer` (`supabase/migrations/0002_functions.sql`, amendées par `0004`, `0005`, `0006`, `0007`, `0008`). Le client (`src/lib/api.ts`) ne fait qu'appeler ces RPC et afficher `get_state`. Les effets visuels (série, annonces, confettis) sont purement cosmétiques.
 
 ---
 
@@ -41,7 +41,7 @@ Le format n'est pas un réglage : il découle du **nombre de joueurs présents a
 2. insère la partie avec un **code de 5 lettres** généré par `_gen_code()` : alphabet `ABCDEFGHJKLMNPQRSTUVWXYZ` (sans I ni O, ambigus), unicité vérifiée en boucle ;
 3. crée le joueur, son token, et le désigne `host_player_id`.
 
-Le mode par défaut est `DEFAULT_MODE = 'echr:full'` (`src/types.ts`), 20 questions, 2 minutes.
+Le mode par défaut est `DEFAULT_MODE = 'fiscal:full'` (`src/types.ts`), soit « Droit fiscal · S7 › Tout le programme », 20 questions, 2 minutes.
 
 ### 2.3 Rejoindre
 
@@ -91,7 +91,7 @@ Chips `DURATIONS = [60, 120, 180, 300]` secondes, affichées « 1 min / 2 min / 
 
 ### 3.5 Tirage des questions
 
-`_pick_questions(p_mode, p_count)` (`0005_courses_modes_review.sql`) lit la ligne `modes` correspondante : filtre `questions.theme = modes.theme` et, si `modes.subtypes` n'est pas null, `subtype = any(subtypes)`, puis `order by random() limit p_count`. Un id absent de la table est interprété en secours comme `theme` ou `theme:subtype` (rétro-compatibilité). **Chaque appel à `create_game` ou `update_settings` retire une nouvelle série** ; elle est figée dans `games.question_ids` au lancement.
+`_pick_questions(p_mode, p_count)` (version en vigueur : `0008_fiscal_tags_oral.sql`) lit la ligne `modes` correspondante : filtre `questions.theme = modes.theme` et, si `modes.subtypes` n'est pas null, `subtype = any(subtypes)`, et si `modes.tags` n'est pas null, `tags && modes.tags` (intersection non vide), puis `order by random() limit p_count`. Un id absent de la table est interprété en secours comme `theme` ou `theme:subtype` (rétro-compatibilité). **Chaque appel à `create_game` ou `update_settings` retire une nouvelle série** ; elle est figée dans `games.question_ids` au lancement.
 
 ---
 
@@ -301,7 +301,7 @@ Les raccourcis sont inactifs pendant le feedback de 650 ms, pendant un appel en 
 
 Une fois `status = 'finished'`, l'écran de résultats charge `get_review(p_token)` (`0005`) : **toutes** les questions de la partie dans l'ordre joué (`unnest(question_ids) with ordinality`), jointes à mes réponses (`left join answers … and a.player_id = pl.id`). Avant la fin, la RPC lève `game_not_finished` et le client réessaie au prochain état.
 
-Chaque `ReviewItem` (`src/types.ts`) porte : `prompt`, `choices`, `correct_index`, `chosen_index` (null = sans réponse), `is_correct`, `subtype`, `difficulty` (1-3), `explanation`, `flag`, `disputed`, `source`, `external_id`.
+Chaque `ReviewItem` (`src/types.ts`) porte : `prompt`, `choices`, `correct_index`, `chosen_index` (null = sans réponse), `is_correct`, `subtype`, `difficulty` (1-3), `explanation`, `flag`, `disputed`, `source`, `external_id`, `oral` (question de cours d'oral préparée par ce QCM, null hors droit fiscal), `tags` (toujours un tableau : `td`, `chiffres`, `oral-blanc`, `piege`).
 
 | Statut (`reviewStatus`, `src/components/ReviewList.tsx`) | Condition | Carte |
 |---|---|---|
@@ -313,30 +313,42 @@ Filtres : Tout / Fautes / Sans réponse / ⚠️ À surveiller (`flag` ou `dispu
 
 Notes affichées dans la carte dépliée, **dans cet ordre** :
 
-1. **⚠️ « Attention : le cours ≠ le droit positif »** (`flag`) — la question suit la version du cours (référence de vérité pour l'examen) alors que le droit positif a évolué ; seconde ligne « Pour l'examen, retiens la version du cours. ». Le cours CEDH en compte 22 ; la règle est énoncée dans `meta.warning` de `data/courses/echr-anglais-s7.json` : répondre le cours à l'examen, mais lire le flag.
-2. **💡 « Pourquoi »** (`explanation`) — absente en Culture G (le format simple `data/questions/*.json` n'a pas d'explication).
-3. **🤔 « Corrigé discutable »** (`disputed`) — le corrigé officiel des annales est contestable ; la note explique pourquoi. Une seule question concernée.
+1. **🎤 « Question de cours à l'oral »** (`oral`, encart violet) — la question de cours que ce QCM prépare, affichée **en tête** parce que c'est elle que le prof posera. Droit fiscal seulement (l'examen y est un oral de 3 questions de cours) ; null ailleurs.
+2. **⚠️ « Attention : le cours ≠ le droit positif »** (`flag`) — la question suit la version du cours (référence de vérité pour l'examen) alors que le droit positif a évolué ; seconde ligne « Pour l'examen, retiens la version du cours. ». Le cours CEDH en compte 22 ; la règle est énoncée dans `meta.warning` de `data/courses/echr-anglais-s7.json` : répondre le cours à l'examen, mais lire le flag.
+3. **💡 « Pourquoi »** (`explanation`) — absente en Culture G (le format simple `data/questions/*.json` n'a pas d'explication).
+4. **🤔 « Corrigé discutable »** (`disputed`) — le corrigé officiel des annales est contestable ; la note explique pourquoi. 56 questions concernées : une en CEDH, 55 en droit fiscal (divergences entre prises de notes, le CM de référence l'emporte).
 
-Puis la source (« CM Anglais, Section 1 ; Plan I.A »). Les chips ⚠️ et 🤔 restent visibles carte repliée.
+Puis la source (« CM Anglais, Section 1 ; Plan I.A »). Les chips ⚠️, 🤔 et 🎯 TD (question taguée `td`) restent visibles carte repliée.
 
 ---
 
 ## 12. Modes disponibles (table `modes`)
 
-Seed dans `0005_courses_modes_review.sql` (`insert … on conflict (id) do update`). Colonnes : `id, course, theme, label, description, emoji, subtypes, sort`. `subtypes = null` = tout le thème. Le nombre de questions est celui des banques `data/` au moment du seed (`scripts/gen-seed-sql.mjs`, `scripts/seed-remote.mjs`).
+Seed dans `0005_courses_modes_review.sql` (dix modes) et `0008_fiscal_tags_oral.sql` (onze modes de droit fiscal), tous deux en `insert … on conflict (id) do update`. Colonnes : `id, course, theme, label, description, emoji, subtypes, tags, sort` (`tags` ajouté par 0008). `subtypes` et `tags` à null = tout le thème ; les deux filtres se combinent en ET. Le nombre de questions est celui des banques `data/` au moment du seed (`scripts/gen-seed-sql.mjs`, `scripts/seed-remote.mjs`).
 
-| `id` | Cours | `theme` | Libellé | `subtypes` | Questions |
-|---|---|---|---|---|---|
-| `echr:full` | Anglais CEDH · S7 | `echr-anglais-s7` | 📚 Tout le programme | null | 250 |
-| `echr:annales` | Anglais CEDH · S7 | `echr-anglais-s7` | 🎓 Annales | `annales` | 20 |
-| `echr:procedure` | Anglais CEDH · S7 | `echr-anglais-s7` | ⚖️ Procédure | `subsidiarity, admissibility, time-limit, filing, interim-measures, just-satisfaction, enforcement, court` | 53 |
-| `echr:articles` | Anglais CEDH · S7 | `echr-anglais-s7` | 📜 Article par article | `articles, protocols, protocol-1-1, article-2 … article-14` | 84 |
-| `echr:theorie` | Anglais CEDH · S7 | `echr-anglais-s7` | 🧠 Théorie et principes | `foundations, systems, convention, nature-of-rights, principles` | 43 |
-| `echr:vocabulaire` | Anglais CEDH · S7 | `echr-anglais-s7` | 🔤 Vocabulaire | `vocabulary` | 20 |
-| `echr:pieges` | Anglais CEDH · S7 | `echr-anglais-s7` | 🪤 Pièges | `traps` | 30 |
-| `geo` | Culture G | `geo` | 🌍 Géographie | null | 406 |
-| `geo:drapeau` | Culture G | `geo` | 🏁 Drapeaux | `drapeau` | 150 |
-| `histoire` | Culture G | `histoire` | 🏛️ Histoire | null | 252 |
+| `id` | Cours | `theme` | Libellé | `subtypes` | `tags` | Questions |
+|---|---|---|---|---|---|---|
+| `echr:full` | Anglais CEDH · S7 | `echr-anglais-s7` | 📚 Tout le programme | null | null | 250 |
+| `echr:annales` | Anglais CEDH · S7 | `echr-anglais-s7` | 🎓 Annales | `annales` | null | 20 |
+| `echr:procedure` | Anglais CEDH · S7 | `echr-anglais-s7` | ⚖️ Procédure | `subsidiarity, admissibility, time-limit, filing, interim-measures, just-satisfaction, enforcement, court` | null | 53 |
+| `echr:articles` | Anglais CEDH · S7 | `echr-anglais-s7` | 📜 Article par article | `articles, protocols, protocol-1-1, article-2 … article-14` | null | 84 |
+| `echr:theorie` | Anglais CEDH · S7 | `echr-anglais-s7` | 🧠 Théorie et principes | `foundations, systems, convention, nature-of-rights, principles` | null | 43 |
+| `echr:vocabulaire` | Anglais CEDH · S7 | `echr-anglais-s7` | 🔤 Vocabulaire | `vocabulary` | null | 20 |
+| `echr:pieges` | Anglais CEDH · S7 | `echr-anglais-s7` | 🪤 Pièges | `traps` | null | 30 |
+| `fiscal:full` | Droit fiscal · S7 | `droit-fiscal-s7` | 📚 Tout le programme | null | null | 188 |
+| `fiscal:oral` | Droit fiscal · S7 | `droit-fiscal-s7` | 🎤 Oral blanc | null | `oral-blanc` | 50 |
+| `fiscal:td` | Droit fiscal · S7 | `droit-fiscal-s7` | 🎯 Spécial TD | null | `td` | 66 |
+| `fiscal:chiffres` | Droit fiscal · S7 | `droit-fiscal-s7` | 🔢 Chiffres & articles | null | `chiffres` | 105 |
+| `fiscal:pieges` | Droit fiscal · S7 | `droit-fiscal-s7` | 🪤 Pièges | null | `piege` | 94 |
+| `fiscal:intro` | Droit fiscal · S7 | `droit-fiscal-s7` | 🏛️ Introduction | `intro` | null | 16 |
+| `fiscal:ir-champ` | Droit fiscal · S7 | `droit-fiscal-s7` | 🗺️ IR : champ | `ir-champ` | null | 14 |
+| `fiscal:categories` | Droit fiscal · S7 | `droit-fiscal-s7` | 💶 Revenus catégoriels | `patrimoine, salaires` | null | 23 |
+| `fiscal:bic` | Droit fiscal · S7 | `droit-fiscal-s7` | 🏭 BIC | `bic-principes, bic-charges, bic-plus-values, bic-regimes` | null | 73 |
+| `fiscal:liquidation` | Droit fiscal · S7 | `droit-fiscal-s7` | 🧮 Liquidation | `liquidation` | null | 13 |
+| `fiscal:tva` | Droit fiscal · S7 | `droit-fiscal-s7` | 🧾 TVA | `tva-champ, tva-territorialite, tva-exigible, tva-deductible` | null | 49 |
+| `geo` | Culture G | `geo` | 🌍 Géographie | null | null | 406 |
+| `geo:drapeau` | Culture G | `geo` | 🏁 Drapeaux | `drapeau` | null | 150 |
+| `histoire` | Culture G | `histoire` | 🏛️ Histoire | null | null | 252 |
 
 Les questions du cours d'anglais juridique sont en anglais (format d'examen), l'interface reste en français. Les libellés de sous-type affichés sur la carte question (« ART. 6 · PROCÈS ÉQUITABLE », « DRAPEAU »…) viennent de `subtypeLabel` (`src/lib/subtype.ts`). Ajouter un mode = une ligne dans `modes` ; ajouter un thème = nouveau JSON + seed + ses lignes : voir [contenu pédagogique](content.md).
 

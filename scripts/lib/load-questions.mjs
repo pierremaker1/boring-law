@@ -2,8 +2,8 @@
 // Deux formats acceptés :
 //   - data/questions/<theme>.json : tableau simple { subtype, prompt, choices, answer, iso? }
 //   - data/courses/<theme>.json   : { meta, topics, modes, questions: [{ id, topic, type, difficulty,
-//                                     question, choices, answer, explanation, source, flag?, disputed? }] }
-// Ligne normalisée : [subtype, prompt, choices, correct, iso, explanation, difficulty, flag, disputed, source, external_id, qtype]
+//                                     question, choices, answer, explanation, source, flag?, disputed?, tags?, oral? }] }
+// Ligne normalisée : [subtype, prompt, choices, correct, iso, explanation, difficulty, flag, disputed, source, external_id, qtype, tags, oral]
 import { existsSync, readFileSync } from 'node:fs'
 
 export function loadQuestions(theme) {
@@ -13,6 +13,10 @@ export function loadQuestions(theme) {
   const raw = JSON.parse(readFileSync(path, 'utf8'))
   const questions = Array.isArray(raw) ? raw : raw.questions
   if (!Array.isArray(questions)) throw new Error(`format inconnu : ${path}`)
+
+  // `oral` est un id de question de cours (or-12) : on stocke en base le TEXTE de la question,
+  // c'est lui qui s'affiche dans la révision (« Question de cours à l'oral »).
+  const oralText = new Map((raw.oral ?? []).map((o) => [o.id, o.question]))
 
   // RNG déterministe : le seed est reproductible d'un build à l'autre
   let seed = 42
@@ -49,6 +53,8 @@ export function loadQuestions(theme) {
         q.source ?? null,
         q.id ?? null,
         q.type ?? null,
+        Array.isArray(q.tags) && q.tags.length ? q.tags : null,
+        q.oral ? (oralText.get(q.oral) ?? q.oral) : null,
       ]
     }),
   }

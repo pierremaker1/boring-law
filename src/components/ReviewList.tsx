@@ -45,6 +45,7 @@ const CHOICE_TAG = {
 
 const NOTE = {
   why: { box: 'border-blue/40 bg-blue-soft', title: '💡 Pourquoi', lead: null },
+  oral: { box: 'border-purple/40 bg-purple-soft', title: '🎤 Question de cours à l’oral', lead: null },
   flag: {
     box: 'border-yellow bg-yellow-soft',
     title: '⚠️ Attention : le cours ≠ le droit positif',
@@ -158,6 +159,7 @@ function ReviewCard({ item, n, open, onToggle }: {
             <HeadChip tone="neutral">{subtypeLabel(item.subtype)}</HeadChip>
             {item.flag && <HeadChip tone="flag">⚠️ Cours ≠ droit positif</HeadChip>}
             {item.disputed && <HeadChip tone="disputed">🤔 Discutable</HeadChip>}
+            {item.tags.includes('td') && <HeadChip tone="neutral">🎯 TD</HeadChip>}
             {level !== null && <Difficulty level={level} />}
           </span>
           <span className="block break-words text-[16px] font-extrabold leading-snug text-ink">
@@ -190,7 +192,8 @@ function ReviewCard({ item, n, open, onToggle }: {
             </p>
           )}
 
-          {/* la note « écart » passe avant l'explication : c'est ce qu'il faut retenir pour l'examen */}
+          {/* la question de cours d'abord (c'est ce que le prof demandera), puis l'écart, puis l'explication */}
+          {item.oral && <Note kind="oral">{item.oral}</Note>}
           {item.flag && <Note kind="flag">{item.flag}</Note>}
           {item.explanation && <Note kind="why">{item.explanation}</Note>}
           {item.disputed && <Note kind="disputed">{item.disputed}</Note>}

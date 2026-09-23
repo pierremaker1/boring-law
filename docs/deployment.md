@@ -221,9 +221,14 @@ Les fichiers du dépôt sont la source de vérité :
 | `0005_courses_modes_review.sql` | colonnes pédagogiques, table `modes`, `get_review` |
 | `0006_multiplayer.sql` | `games.max_players`, 1 à 10 joueurs, `get_state` avec `players[]` et `rank` |
 | `0007_rank_by_score.sql` | `get_state` : rang « compétition » (1, 1, 3) sur le score seul, aligné sur `winner_player_id` |
+| `0008_fiscal_tags_oral.sql` | `questions.tags` (+ index GIN `questions_tags_idx`) et `questions.oral`, `modes.tags` ; `_pick_questions` filtre aussi par tags ; `get_review` renvoie `oral` et `tags` ; les 11 modes du droit fiscal (`sort` 20-30) |
+| `0003_seed_droit-fiscal-s7.sql` | banque de droit fiscal (générée) : se charge **après `0008`**, qui crée les colonnes `tags` et `oral` |
 
 Historique distant (`list_migrations`) : `schema`, `functions`, `fix_gen_code`, `modes_and_end_rule`,
-`courses_modes_review`, `multiplayer`, `multiplayer_rank_cast`, `rank_by_score`, `rank_by_score_fix`. Trois
+`courses_modes_review`, `multiplayer`, `multiplayer_rank_cast`, `rank_by_score`, `rank_by_score_fix`,
+`fiscal_tags_oral_schema`, `fiscal_modes` (onze entrées). `0008_fiscal_tags_oral.sql` a été appliquée en **deux**
+migrations distantes : le schéma (colonnes, index, `_pick_questions`, `get_review`) puis les 11 lignes de `modes` ;
+le dépôt n'en garde qu'un fichier. Trois
 entrées (`fix_gen_code`, `multiplayer_rank_cast`, `rank_by_score_fix`) sont des correctifs appliqués à chaud
 puis **repliés dans les fichiers** `0002`, `0006` et `0007` ; les seeds n'apparaissent pas dans l'historique
 car ils ont été chargés hors `apply_migration` (SQL editor ou RPC temporaire `admin_seed_questions`, §4.5 :
