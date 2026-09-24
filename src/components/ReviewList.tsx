@@ -46,10 +46,12 @@ const CHOICE_TAG = {
 const NOTE = {
   why: { box: 'border-blue/40 bg-blue-soft', title: '💡 Pourquoi', lead: null },
   oral: { box: 'border-purple/40 bg-purple-soft', title: '🎤 Question de cours à l’oral', lead: null },
+  // L'accroche dépendrait du cours (CEDH : répondre comme le cours ; droit fiscal : la banque suit le
+  // droit en vigueur), donc c'est le texte du flag lui-même qui dit quoi retenir.
   flag: {
     box: 'border-yellow bg-yellow-soft',
-    title: '⚠️ Attention : le cours ≠ le droit positif',
-    lead: 'Pour l’examen, retiens la version du cours.',
+    title: '⚠️ Ton cours et le droit en vigueur divergent',
+    lead: null,
   },
   disputed: { box: 'border-orange bg-orange-soft', title: '🤔 Corrigé discutable', lead: null },
 } as const

@@ -274,20 +274,38 @@ Rendu dans la révision (`ReviewList.tsx`) : la question de cours s'affiche dans
 
 ## 4. Principe de vérité d'un cours
 
-Extrait de `data/courses/echr-anglais-s7.md` : **« La référence est le cours, pas le droit positif. »** L'examen note la conformité au cours ; quand le cours est daté ou inexact, la bonne réponse reste celle du cours et le champ `flag` explique l'écart. La banque CEDH porte 22 `flag` et 1 `disputed` ; la banque de droit fiscal, 42 `flag` et 55 `disputed` (chiffres actualisés chaque année, divergences entre prises de notes).
+**Le principe de vérité dépend du format de l'examen**, et il est écrit noir sur blanc dans `meta` de chaque banque (`warning` pour la CEDH, `truth` pour le droit fiscal) :
+
+- **CEDH (`echr-anglais-s7`) — la référence est le cours.** L'examen est un QCM noté sur la conformité au cours : quand le cours est daté ou inexact, la bonne réponse **reste celle du cours** et le `flag` explique l'écart.
+- **Droit fiscal (`droit-fiscal-s7`) — la référence est le droit en vigueur.** L'examen est un oral : un examinateur ne sanctionne pas un candidat qui cite le bon article et le bon chiffre. La banque a donc été confrontée à Légifrance, au BOFiP et aux sources officielles ; quand le cours est faux ou périmé, **c'est la question qui change** (la bonne réponse devient le droit positif) et le `flag` garde la trace de ce que le cours affirmait, pour ne pas être pris au dépourvu si l'examinateur récite l'ancienne version.
+
+Dans les deux cas le `flag` dit lui-même quoi retenir : le composant n'affiche plus d'accroche générique.
 
 | Champ | Sens | Rendu dans la révision (`ReviewList.tsx`) |
 |---|---|---|
 | `explanation` | Pourquoi c'est la bonne réponse, avec le vocabulaire du cours. | Note bleue « 💡 Pourquoi ». |
-| `flag` | Le cours dit X, le droit positif dit Y. La réponse attendue reste X. | Chip « ⚠️ Cours ≠ droit positif » dans l'en-tête (visible carte repliée) et note jaune « ⚠️ Attention : le cours ≠ le droit positif » avec l'accroche « Pour l'examen, retiens la version du cours. », affichée **avant** l'explication (et après la note 🎤 quand il y en a une, §3.4). |
+| `flag` | Ton cours et le droit en vigueur divergent. Le texte du flag dit lequel des deux la question suit (le cours en CEDH, le droit positif en fiscal) et pourquoi. | Chip « ⚠️ Cours ≠ droit positif » dans l'en-tête (visible carte repliée) et note jaune « ⚠️ Ton cours et le droit en vigueur divergent », affichée **avant** l'explication (et après la note 🎤 quand il y en a une, §3.4). |
 | `disputed` | Le corrigé retenu est défendable mais discutable (annales sans corrigé officiel, notes ambiguës). | Chip « 🤔 Discutable » et note orange « 🤔 Corrigé discutable », après l'explication. |
 
 `isFlagged(item)` = `flag` ou `disputed` non vide ; c'est le filtre « ⚠️ À surveiller » de la page Résultats, avec le compteur « N à surveiller ». L'idée : un étudiant qui révise sur autre chose que son cours se fait piéger exactement sur ces questions, il doit pouvoir les isoler.
 
 Règles d'écriture qui en découlent :
 
-- Écrire `flag` du point de vue de l'étudiant : ce que dit le support, ce qui est vrai aujourd'hui, et ce qu'il faut répondre (« Answer as taught, but… »).
-- Ne jamais « corriger » silencieusement le cours dans `answer` : si le cours se trompe, la réponse reste celle du cours et on ajoute un `flag`.
+- Écrire `flag` du point de vue de l'étudiant : ce que dit le support, ce qui est vrai aujourd'hui, et ce qu'il faut répondre.
+- Ne jamais s'écarter du cours *silencieusement* : que la question suive le cours (CEDH) ou le droit positif (fiscal), l'écart est toujours écrit dans un `flag`.
+- Une simplification pédagogique exacte n'est pas une erreur : un cours plus court que le texte, mais juste, ne justifie ni correction ni `flag`.
+
+### 4.1 La vérification web de la banque de droit fiscal
+
+La banque a été confrontée aux sources officielles avant d'être mise à jour, en trois temps :
+
+1. **Vérification** — un agent par thème relève chaque élément vérifiable (numéro d'article, seuil, taux, plafond, délai, date, décision, dénomination) dans l'énoncé, les quatre propositions, l'explication, le `flag` et le `disputed`, puis le confronte au texte en vigueur sur Légifrance et à une seconde source indépendante (BOFiP, impots.gouv.fr, service-public.fr, sites des juridictions). **906 éléments vérifiés, 176 constats.**
+2. **Contre-vérification** — chaque constat repasse devant un agent indépendant dont la consigne est de le **réfuter**, sources à l'appui, avec une exigence renforcée quand le constat touche la bonne réponse (un texte en vigueur explicite est requis ; une source secondaire ne suffit jamais) et la règle « en cas de doute réel après recherche, on réfute ». **16 constats écartés, 160 confirmés.**
+3. **Application puis harmonisation** — un agent par thème applique les constats confirmés, puis un dernier agent relit l'ensemble : c'est lui qui rattrape ce que treize agents travaillant chacun sur son thème ne peuvent pas voir — un même chiffre porté à deux valeurs différentes dans deux thèmes, une note de provenance logée dans `flag` au lieu de `disputed`, une formulation de `flag` qui dénote.
+
+Résultat : **131 questions sur 188 retouchées**, dont **40 où une proposition ou la bonne réponse a changé** ; les `flag` passent de 42 à **110** (chaque écart avec le cours est tracé) et les `disputed` de 55 à **44** (treize divergences entre prises de notes tranchées par le texte).
+
+Ce que la passe s'est **interdit** de faire, et qui compte autant : corriger une simplification exacte, réécrire un énoncé d'une manière qui rendrait un distracteur défendable (deux réponses soutenables), ou déplacer une bonne réponse sans texte en vigueur explicite.
 - `disputed` n'est pas un `flag` : il signale un doute sur le corrigé lui-même, pas un écart connu avec le droit positif.
 - Lister les écarts dans le `.md` du cours (classés du plus important au plus anecdotique) : c'est la seule vue d'ensemble, la base ne les agrège pas.
 

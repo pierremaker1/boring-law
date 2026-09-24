@@ -9,7 +9,7 @@ Quelques conventions :
 
 - **Pas de numéros de version.** `package.json` reste en `0.0.0` et le dépôt n'a aucun tag : les étapes sont
   identifiées par leur hash de commit. Les étapes 1 à 7 tiennent sur une journée, le **11 septembre 2026** ; l'heure
-  (Europe/Paris) sert donc à les ordonner. L'étape 8 (droit fiscal) arrive onze jours plus tard.
+  (Europe/Paris) sert donc à les ordonner. Les étapes 8 et 9 (droit fiscal) arrivent onze jours plus tard.
 - **Ordre chronologique** (la plus ancienne en premier), comme `git log --reverse` : le journal se lit comme
   l'histoire du projet.
 - Chaque entrée sépare **ce qui change pour le joueur**, **ce qui change techniquement** et **les migrations SQL**
@@ -17,7 +17,7 @@ Quelques conventions :
   [annexe A](#annexe-a--migrations--ordre-dapplication-et-dépendances).
 - Le journal a d'abord été écrit avant le commit `e4cb0d0` (11 septembre, 20:40), qui a livré d'un bloc le front 1 à
   10 joueurs, `0007` et le dossier `docs/` : les mentions « arbre de travail » des étapes 6 et 7 datent de ce
-  moment-là. Seule l'**étape 8 est encore non commitée**.
+  moment-là. L'étape 8 a été commitée depuis (`b037247`) ; seule l'**étape 9 est encore non commitée**.
 
 Pour l'architecture actuelle (tables, RPC, hooks, flux Realtime), voir [architecture](architecture.md) ; pour le design
 system, voir la [spec Globe Pop!](design-spec.md) ; pour l'installation, le [README](../README.md).
@@ -33,7 +33,8 @@ system, voir la [spec Globe Pop!](design-spec.md) ; pour l'installation, le [REA
 | 5 | Pivot « Boring Law » : cours CEDH, modes en base, révision | `e7421be` | 18:47 | `0005_courses_modes_review.sql`, `0003_seed_echr-anglais-s7.sql` (+ seeds géo/histoire régénérés) |
 | 6 | Parties de 1 à 10 joueurs (backend puis front) | `923ef17`, `e4cb0d0` | 18:58, 20:40 | `0006_multiplayer.sql`, `0007_rank_by_score.sql` |
 | 7 | Documentation (`docs/`) | `e4cb0d0` | 20:40 | — |
-| 8 | Troisième cours : Droit fiscal · S7 (examen oral, tags, 11 modes) | arbre de travail | 21-23 sept. | `0008_fiscal_tags_oral.sql` |
+| 8 | Troisième cours : Droit fiscal · S7 (examen oral, tags, 11 modes) | `b037247` | 21-23 sept. | `0008_fiscal_tags_oral.sql` |
+| 9 | La banque de droit fiscal passe au droit en vigueur (vérification web) | arbre de travail | 23-24 sept. | `0003_seed_droit-fiscal-s7.sql` régénéré |
 
 ## 1. V1 « Boring Geo » — quiz géo en course à 2 joueurs
 
@@ -339,9 +340,9 @@ pourquoi elle est là. Aucun fichier de code n'est modifié par cette étape.
 
 ## 8. Troisième cours — Droit fiscal · S7, un examen oral
 
-**Arbre de travail (non commité)**, 21-23 septembre 2026 : la banque est datée `built: 2026-09-21` (`meta` du JSON) et
-les deux migrations distantes portent les horodatages `20260921181347` puis `20260923074504`. Pas encore de commit :
-citer `git log` après coup plutôt que d'inventer un hash. 3 fichiers créés (`data/courses/droit-fiscal-s7.json`,
+**Commit** `b037247` (23 septembre) — *Cours Droit fiscal · S7 : 188 QCM pensés pour un oral de 3 questions de cours*.
+La banque est datée `built: 2026-09-21` (`meta` du JSON) et les deux migrations distantes portent les horodatages
+`20260921181347` puis `20260923074504`. 3 fichiers créés (`data/courses/droit-fiscal-s7.json`,
 `data/courses/droit-fiscal-s7.md`, `supabase/migrations/0008_fiscal_tags_oral.sql`), 5 fichiers de code modifiés
 (les deux scripts de seed, `src/types.ts`, `src/components/ReviewList.tsx`, `src/lib/subtype.ts`), plus la
 documentation.
@@ -409,10 +410,60 @@ Le pipeline est décrit en fin de fiche (`data/courses/droit-fiscal-s7.md`, sect
 
 | Fichier | Contenu |
 |---|---|
-| `0008_fiscal_tags_oral.sql` (arbre de travail) | 1) `questions` gagne `tags text[]` (index GIN `questions_tags_idx`) et `oral text` (le **texte** de la question de cours, résolu au seed) ; `modes` gagne `tags text[]`. 2) `_pick_questions` recréée : elle lit `subtypes` **et** `tags` du mode et filtre `(v_subtypes is null or subtype = any(v_subtypes)) and (v_tags is null or tags && v_tags)` ; le repli `theme` / `theme:subtype` reste, sans tags. 3) `get_review` recréée : elle renvoie en plus `oral` et `tags` (`coalesce(to_json(q.tags), '[]')`, jamais null côté client). 4) `insert … on conflict (id) do update` des **11 modes** du cours (`sort` 20 à 30). |
+| `0008_fiscal_tags_oral.sql` | 1) `questions` gagne `tags text[]` (index GIN `questions_tags_idx`) et `oral text` (le **texte** de la question de cours, résolu au seed) ; `modes` gagne `tags text[]`. 2) `_pick_questions` recréée : elle lit `subtypes` **et** `tags` du mode et filtre `(v_subtypes is null or subtype = any(v_subtypes)) and (v_tags is null or tags && v_tags)` ; le repli `theme` / `theme:subtype` reste, sans tags. 3) `get_review` recréée : elle renvoie en plus `oral` et `tags` (`coalesce(to_json(q.tags), '[]')`, jamais null côté client). 4) `insert … on conflict (id) do update` des **11 modes** du cours (`sort` 20 à 30). |
 
 Appliquée sur la base de production en **deux migrations distantes** : `fiscal_tags_oral_schema` (colonnes, index,
 `_pick_questions`, `get_review`) puis `fiscal_modes` (les 11 lignes de `modes`).
+
+## 9. La banque de droit fiscal passe au droit en vigueur
+
+**Arbre de travail** (23-24 septembre). L'étape 8 avait construit la banque sur le cours ; celle-ci la confronte aux
+textes. Le déclencheur est le format de l'examen : en droit fiscal il est **oral**, et un examinateur ne sanctionne
+pas un candidat qui cite le bon article et le bon chiffre. Le principe de vérité s'inverse donc pour ce cours — la
+banque suit le **droit en vigueur**, et le `flag` garde la trace de ce que le cours affirmait. Le cours CEDH, lui,
+garde l'ancienne règle : son examen est un QCM noté sur la conformité au cours (voir
+[content §4](content.md#4-principe-de-vérité-dun-cours)).
+
+### Pour le joueur
+
+- **131 questions sur 188 retouchées**, dont **40 où une proposition ou la bonne réponse change**. Exemples : le taux
+  minimum d'imposition des non-résidents (art. 197 A) passe de 26 070 € à **29 579 €** pour les revenus 2025, la
+  valeur périmée devenant un distracteur ; le nombre de conventions fiscales bilatérales tombe de « plus de 140 » à
+  **124 en vigueur** ; le PFU est ramené partout à **31,4 %** (CSG sur les revenus du capital à 10,6 %).
+- **Les `flag` passent de 42 à 110** : chaque écart avec le cours est désormais tracé, et aucun ne dit plus
+  « réponds comme le cours ». **Les `disputed` tombent de 55 à 44** : treize divergences entre prises de notes ont
+  été tranchées par le texte lui-même.
+- Les **50 plans de réponse d'oral** sont mis à jour : 105 puces réécrites, 38 puces « ⚠️ ton cours disait… »
+  ajoutées, une contradiction interne entre deux plans levée (le taux de TVA d'un plat à emporter : 10 % en
+  consommation immédiate, 5,5 % s'il est conservable).
+- Les effectifs des modes ne bougent pas (aucune question ajoutée ni supprimée) : Tout le programme 188, Oral blanc
+  50, Spécial TD 66, Chiffres & articles 105, Pièges 94.
+
+### Comment
+
+Trois passes, décrites en détail dans [content §4.1](content.md#41-la-vérification-web-de-la-banque-de-droit-fiscal) :
+un agent par thème confronte chaque élément vérifiable à Légifrance **et** à une seconde source officielle (BOFiP,
+impots.gouv.fr, service-public.fr, sites des juridictions) → **906 éléments, 176 constats** ; chaque constat repasse
+devant un agent chargé de le **réfuter** → **16 écartés, 160 confirmés** ; un agent par thème les applique, puis un
+dernier relit les 13 thèmes ensemble pour rattraper ce qu'aucun ne pouvait voir seul (un même chiffre à deux valeurs
+dans deux thèmes, une note de provenance logée dans `flag` au lieu de `disputed`).
+
+### Techniquement
+
+- `data/courses/droit-fiscal-s7.json` régénéré (`meta.truth` réécrit, `meta.built` au 24 septembre) et la fiche
+  `data/courses/droit-fiscal-s7.md` refaite — **902 lignes**, dont un tableau des 110 flags « ce que disait ton
+  cours → ce qui est exact aujourd'hui ».
+- `src/components/ReviewList.tsx` : la note jaune devient « ⚠️ Ton cours et le droit en vigueur divergent » et
+  **perd son accroche fixe**. L'ancienne (« Pour l'examen, retiens la version du cours. ») serait fausse en droit
+  fiscal : c'est maintenant le texte du `flag` lui-même qui dit laquelle des deux versions la question suit.
+- `supabase/migrations/0003_seed_droit-fiscal-s7.sql` régénéré (188 lignes, 420 Ko).
+- **Seed de production appliqué en place** : la RPC temporaire `admin_seed_questions` a été réécrite en
+  `update … from jsonb_array_elements(p_rows) where external_id = x->>10` (+ `insert` des nouveautés) au lieu d'un
+  `delete` suivi d'un `insert`. Motif : des parties avaient déjà été jouées sur ce thème et `answers.question_id`
+  référence `questions.id` — le `delete` échouait sur la contrainte de clé étrangère. La mise à jour par
+  `external_id` garde les ids, donc les parties passées restent lisibles en révision. La RPC a été supprimée après
+  le seed.
+- Aucun changement de schéma : cette étape ne touche que des données et un libellé d'interface.
 
 ## Annexe A — Migrations : ordre d'application et dépendances
 
@@ -496,7 +547,7 @@ git log --reverse --pretty=format:"%h %ad %s" --date=short
 # Fichiers touchés par étape
 git log --reverse --stat --pretty=format:"=== %h %ad %s ===" --date=iso
 
-# Ce qui n'est pas encore commité (étape 8)
+# Ce qui n'est pas encore commité (étape 9)
 git status --short
 git diff --stat HEAD
 ```
@@ -515,5 +566,5 @@ e7421be 2026-09-11 Boring Geo devient Boring Law : apprentissage gamifié
 e4cb0d0 2026-09-11 Parties de 1 à 10 joueurs (solo, duel, groupe) + documentation complète
 ```
 
-L'étape 8 (droit fiscal) n'apparaît pas encore : elle est dans l'arbre de travail. Une fois commitée, remplacer
-« arbre de travail » par le hash dans le tableau de la vue d'ensemble et en tête de la section 8.
+L'étape 9 (vérification web de la banque fiscale) n'apparaît pas encore : elle est dans l'arbre de travail. Une fois
+commitée, remplacer « arbre de travail » par le hash dans le tableau de la vue d'ensemble et en tête de la section 9.

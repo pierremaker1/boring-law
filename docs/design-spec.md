@@ -881,9 +881,10 @@ on garde le squelette et on retente au prochain état ; autre erreur → `ErrorM
    « Tu n'as pas répondu à cette question (passée ou jamais atteinte). ». Puis les **Notes** (`rounded-btn border-2 p-3`,
    titre 14 px uppercase ink, corps 16 px `leading-relaxed` ink, texte ink sur -soft) dans cet ordre : 🎤 « Question de cours à
    l'oral » `bg-purple-soft border-purple/40` (si `oral`, droit fiscal : c'est elle que le prof posera) ;
-   ⚠️ « Attention :
-   le cours ≠ le droit positif » `bg-yellow-soft border-yellow` + seconde ligne « Pour l'examen, retiens la version du
-   cours. » (avant l'explication : c'est ce qu'il faut retenir) ; 💡 « Pourquoi » `bg-blue-soft border-blue/40`
+   ⚠️ « Ton cours et le
+   droit en vigueur divergent » `bg-yellow-soft border-yellow`, sans accroche fixe — laquelle des deux versions la
+   question retient dépend du cours, c'est le texte du `flag` qui le dit (avant l'explication : c'est ce qu'il faut
+   retenir) ; 💡 « Pourquoi » `bg-blue-soft border-blue/40`
    (absente en Culture G) ; 🤔 « Corrigé discutable » `bg-orange-soft border-orange`. Source 13 px ink-soft.
 5. Sons : `sfx.tap()` à chaque pli/dépli. Accessibilité : `sr-only` « Question n, faute. Écart entre le cours et le droit
    positif. » dans l'en-tête, « Bonne réponse, ta réponse. » / « Ta réponse, fausse. » dans les choix, `aria-controls`.

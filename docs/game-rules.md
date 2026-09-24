@@ -314,9 +314,9 @@ Filtres : Tout / Fautes / Sans réponse / ⚠️ À surveiller (`flag` ou `dispu
 Notes affichées dans la carte dépliée, **dans cet ordre** :
 
 1. **🎤 « Question de cours à l'oral »** (`oral`, encart violet) — la question de cours que ce QCM prépare, affichée **en tête** parce que c'est elle que le prof posera. Droit fiscal seulement (l'examen y est un oral de 3 questions de cours) ; null ailleurs.
-2. **⚠️ « Attention : le cours ≠ le droit positif »** (`flag`) — la question suit la version du cours (référence de vérité pour l'examen) alors que le droit positif a évolué ; seconde ligne « Pour l'examen, retiens la version du cours. ». Le cours CEDH en compte 22 ; la règle est énoncée dans `meta.warning` de `data/courses/echr-anglais-s7.json` : répondre le cours à l'examen, mais lire le flag.
+2. **⚠️ « Ton cours et le droit en vigueur divergent »** (`flag`) — laquelle des deux versions la question retient dépend du format de l'examen, et c'est le texte du flag qui le dit. En CEDH (QCM noté sur le cours, `meta.warning` de `data/courses/echr-anglais-s7.json`) la question suit le cours : 22 flags. En droit fiscal (oral) la banque suit le **droit en vigueur**, vérifié sur Légifrance et le BOFiP, et le flag garde la trace de ce que le cours affirmait (`meta.truth` de `data/courses/droit-fiscal-s7.json`).
 3. **💡 « Pourquoi »** (`explanation`) — absente en Culture G (le format simple `data/questions/*.json` n'a pas d'explication).
-4. **🤔 « Corrigé discutable »** (`disputed`) — le corrigé officiel des annales est contestable ; la note explique pourquoi. 56 questions concernées : une en CEDH, 55 en droit fiscal (divergences entre prises de notes, le CM de référence l'emporte).
+4. **🤔 « Corrigé discutable »** (`disputed`) — le corrigé retenu est défendable mais contestable ; la note explique pourquoi. 45 questions concernées : une en CEDH, 44 en droit fiscal (divergences entre prises de notes, le CM de référence l'emporte). La passe de vérification web en a tranché treize : quand le texte départage deux prises de notes, il n'y a plus rien à discuter.
 
 Puis la source (« CM Anglais, Section 1 ; Plan I.A »). Les chips ⚠️, 🤔 et 🎯 TD (question taguée `td`) restent visibles carte repliée.
 
