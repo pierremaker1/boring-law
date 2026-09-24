@@ -1,4 +1,7 @@
 -- Seed droit-fiscal-s7 (188 questions, source data/courses/droit-fiscal-s7.json) — généré par scripts/gen-seed-sql.mjs
+-- Pour une base VIERGE : le delete ci-dessous échoue si des parties ont déjà été jouées sur ce thème
+-- (answers.question_id référence questions.id). Sur une base en service, passer par scripts/seed-remote.mjs
+-- avec une RPC qui met à jour les lignes existantes par external_id au lieu de les supprimer.
 delete from questions where theme = 'droit-fiscal-s7';
 insert into questions (theme, subtype, prompt, choices, correct_index, image_url,
                        explanation, difficulty, flag, disputed, source, external_id, qtype, tags, oral)

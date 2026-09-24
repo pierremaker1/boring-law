@@ -9,6 +9,9 @@ const { rows, path } = loadQuestions(theme)
 // Format compact : un tableau JSON de lignes normalisées, dépilé côté SQL
 const payload = JSON.stringify(rows).replace(/'/g, "''")
 const sql = `-- Seed ${theme} (${rows.length} questions, source ${path}) — généré par scripts/gen-seed-sql.mjs
+-- Pour une base VIERGE : le delete ci-dessous échoue si des parties ont déjà été jouées sur ce thème
+-- (answers.question_id référence questions.id). Sur une base en service, passer par scripts/seed-remote.mjs
+-- avec une RPC qui met à jour les lignes existantes par external_id au lieu de les supprimer.
 delete from questions where theme = '${theme}';
 insert into questions (theme, subtype, prompt, choices, correct_index, image_url,
                        explanation, difficulty, flag, disputed, source, external_id, qtype, tags, oral)
