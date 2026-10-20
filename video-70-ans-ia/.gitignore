@@ -1,0 +1,6 @@
+node_modules/
+.remotion/
+# Skills Remotion : réinstallables via `npx remotion skills add` (voir skills-lock.json)
+.agents/
+.claude/
+# out/ est volontairement versionné (MP4 final + previews)
