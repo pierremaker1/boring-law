@@ -27,6 +27,7 @@ npm run dev          # Remotion Studio sur http://localhost:3000, composition "S
 npm run render       # = npx remotion render SeventyYearsAI out/70-ans-ia.mp4 --codec=h264 --crf=18
 npm run stills       # régénère les 12 stills de contrôle dans out/previews/
 npm run typecheck    # tsc --noEmit
+npm run check:frames # vérifie qu'aucune frame du MP4 n'est corrompue (Python 3 + numpy)
 ```
 
 Les scripts `render`, `stills`, `dev` et `typecheck` lancent d'abord `npm run embed` (voir « Le vrai code en fond » plus bas).
@@ -123,9 +124,9 @@ La scène « C'est une IA qui l'a codée. » fait défiler, flouté, le vrai cod
 - 2012-2017 : Montserrat, aplats francs (bleu, sarcelle, violet) avec ombres longues. AlexNet : une grille de pixels bruités est « lue » par une bande de balayage, se nettoie en silhouette de chat (sans visage), puis se compresse pour devenir l'icône de l'étiquette « chat 98 % ». AlphaGo : 40 pierres posées en rafale qui accélère. Transformer : les mots du titre deviennent des jetons reliés par des arcs d'attention, puis les lignes convergent vers le T de « ChatGPT », qui s'illumine.
 - 2022-2026 : Inter, halos colorés, verre dépoli (`backdrop-filter`), bulles de chat sans texte (lignes de squelette), compteur 0 → 100 000 000 en croissance exponentielle qui s'emballe.
 
-**Transitions (de plus en plus courtes)**
+**Transitions (le rythme s'accélère)**
 
-- 390 : balayage de scanline (16 frames), 510 : dissolution en pixels (14), 615 : glitch avec séparation RVB par filtre SVG (10), 885 : morphing carré plat → cercle → plein écran (12).
+- 390 : balayage de scanline (16 frames), 510 : dissolution en pixels (14), 615 : glitch avec séparation RVB par filtre SVG (10), 885 : morphing carré plat → cercle → plein écran (12). Les scènes raccourcissent en parallèle (120 frames au début, 90 en flat) et les dernières coupes ne durent que 6 frames.
 - À l'intérieur d'une époque : avance papier (télétype, 6 frames), volet diagonal jaune puis couleur qui emporte le contenu (flat), zoom + flou (verre, 6 frames).
 
 **Lisibilité et zones de sécurité**
@@ -153,7 +154,7 @@ La scène « C'est une IA qui l'a codée. » fait défiler, flouté, le vrai cod
 **Navigateur de rendu**
 
 - `npx remotion browser ensure` installe Chrome Headless Shell 157 sans problème, mais dans l'environnement de build le trafic HTTPS passe par un proxy dont le certificat n'est connu que du magasin système (NSS). Le headless shell l'ignore et les Google Fonts échouaient (`ERR_CERT_AUTHORITY_INVALID`).
-- Solution retenue : `Config.setChromeMode('chrome-for-testing')` dans `remotion.config.ts`. Remotion télécharge alors son Chrome for Testing épinglé, qui respecte le magasin système. Aucune vérification TLS n'a été désactivée. Sur une machine normale, les deux modes fonctionnent.
+- Solution retenue : `Config.setChromeMode('chrome-for-testing')` dans `remotion.config.ts`. Remotion télécharge alors son Chrome for Testing épinglé, qui respecte le magasin système. Aucune vérification TLS n'a été désactivée. Sur une machine sans proxy, le headless shell par défaut devrait aussi convenir (non testé ici).
 - Images intermédiaires en JPEG qualité 95 pour un texte net.
 - **Rendu sur un seul onglet** (`Config.setConcurrency(1)`). Le premier rendu complet contenait 68 frames corrompues sur 1200 : une bande de l'image répétée en mosaïque, surtout pendant l'hiver CRT, alors que les stills des mêmes frames étaient propres. Sous Linux, Remotion lance Chrome en `--single-process`, et plusieurs onglets qui rendent en parallèle se perturbent. Banc d'essai sur les frames 380-519 : concurrence 2 = 12 frames corrompues, `--disable-gpu-rasterization` = 11, `--gl=swangle` = 119, concurrence 1 = 0. Le rendu prend quelques minutes de plus, sans défaut.
 - La capture par mémoire partagée (pipeline récent de Remotion 4.0.534+) est aussi désactivée par prudence : `Config.setDisableSharedMemoryCapture(true)`.
@@ -164,6 +165,24 @@ La scène « C'est une IA qui l'a codée. » fait défiler, flouté, le vrai cod
 
 - `npx tsc --noEmit` : 0 erreur.
 - Stills au milieu de chaque scène (`out/previews/`), plus des stills de travail sur chaque transition et à la fin de chaque scène. Corrigé au fil des passes : halo du compteur coupé en rectangles, dernière lettre tapée qui restait « chaude », cartes perforées qui touchaient le titre, cristaux de givre sur le texte, remplissage des creux trop « graphique en barres », mini-bulles qui dépassaient du verre, flash avant l'impact du « 70 », textes qui se chevauchaient pendant les volets et les fondus.
+- Planche contact du MP4 final (une frame sur 15) relue, et `npm run check:frames` sur les 1200 frames.
 - `npx remotion ffprobe out/70-ans-ia.mp4` : voir ci-dessous.
 
-RENDER_REPORT_PLACEHOLDER
+## Rendu final
+
+Commande : `npx remotion render SeventyYearsAI out/70-ans-ia.mp4 --codec=h264 --crf=18` (réglages de `remotion.config.ts`), environ 10 minutes sur 4 cœurs.
+
+Résultat de `npx remotion ffprobe out/70-ans-ia.mp4` :
+
+| Propriété | Valeur |
+| --- | --- |
+| Durée | 40,000 s |
+| Frames | 1200 |
+| Dimensions | 1080 x 1920 |
+| Cadence | 30 fps |
+| Codec | H.264 High, `yuv420p` |
+| Couleur | BT.709, plage limitée (tv) |
+| Audio | aucun (vidéo muette) |
+| Poids | 13,3 Mo (sous la limite de 50 Mo, CRF 18 conservé) |
+
+`npm run check:frames` : 1200 frames analysées, 0 suspecte.
