@@ -10,3 +10,12 @@ Config.setPixelFormat('yuv420p');
 // il respecte le magasin de certificats du système (proxy TLS de l'environnement
 // de build), ce qui permet de charger les Google Fonts pendant le rendu.
 Config.setChromeMode('chrome-for-testing');
+
+// Capture par mémoire partagée (nouveau pipeline, Remotion >= 4.0.534) :
+// dans cet environnement, environ 6 % des frames sortaient corrompues (une bande
+// de l'image répétée en mosaïque). Retour aux captures d'écran classiques.
+// Contrôle : `npm run check:frames` analyse chaque frame du MP4.
+Config.setDisableSharedMemoryCapture(true);
+
+// BT.709 plage limitée : le standard attendu par TikTok, Reels et les lecteurs mobiles.
+Config.setColorSpace('bt709');

@@ -12,7 +12,8 @@
     "prestills": "npm run embed",
     "stills": "node scripts/stills.mjs out/previews",
     "prerender": "npm run embed",
-    "render": "remotion render SeventyYearsAI out/70-ans-ia.mp4 --codec=h264 --crf=18"
+    "render": "remotion render SeventyYearsAI out/70-ans-ia.mp4 --codec=h264 --crf=18",
+    "check:frames": "python3 -I scripts/check-tiling.py out/70-ans-ia.mp4"
   },
   "license": "UNLICENSED",
   "dependencies": {

@@ -155,6 +155,9 @@ La scène « C'est une IA qui l'a codée. » fait défiler, flouté, le vrai cod
 - `npx remotion browser ensure` installe Chrome Headless Shell 157 sans problème, mais dans l'environnement de build le trafic HTTPS passe par un proxy dont le certificat n'est connu que du magasin système (NSS). Le headless shell l'ignore et les Google Fonts échouaient (`ERR_CERT_AUTHORITY_INVALID`).
 - Solution retenue : `Config.setChromeMode('chrome-for-testing')` dans `remotion.config.ts`. Remotion télécharge alors son Chrome for Testing épinglé, qui respecte le magasin système. Aucune vérification TLS n'a été désactivée. Sur une machine normale, les deux modes fonctionnent.
 - Images intermédiaires en JPEG qualité 95 pour un texte net.
+- **Capture par mémoire partagée désactivée** (`Config.setDisableSharedMemoryCapture(true)`). Le premier rendu complet, avec ce nouveau pipeline de Remotion 4.0.534+, contenait 68 frames corrompues sur 1200 : une bande de l'image répétée en mosaïque, surtout pendant l'hiver CRT. Les stills, capturés en screenshot classique, étaient propres. Avec les captures classiques, le défaut disparaît.
+- `npm run check:frames` (`scripts/check-tiling.py`) décode chaque frame du MP4 et signale toute image qui se répète à l'identique par bandes. À relancer après chaque rendu.
+- Espace couleur BT.709 en plage limitée (`Config.setColorSpace('bt709')`) : par défaut Remotion sortait du `yuvj420p` plage complète non étiqueté, que certains lecteurs mobiles affichent avec des noirs délavés.
 
 ## Contrôle qualité effectué
 
